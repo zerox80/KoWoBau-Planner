@@ -24,10 +24,25 @@ Pop-Location
 cargo build --release -p kowobau-backend
 ```
 
+## Session secret (required)
+
+The backend refuses to start unless `KOWOBAU_SESSION_SECRET` is set to at least 32 characters. Generate one and put it in `.env`:
+
+```powershell
+# PowerShell
+[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+```bash
+# Linux/macOS
+openssl rand -base64 48
+```
+
 With Docker available:
 
 ```powershell
 Copy-Item .env.example .env
+# Edit .env and set KOWOBAU_SESSION_SECRET (see above)
 docker compose up --build
 ```
 

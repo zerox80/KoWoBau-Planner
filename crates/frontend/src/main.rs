@@ -977,7 +977,7 @@ fn task_detail(
             <section>
                 <h3>{move || if lang.get() == Lang::De { "Anhänge" } else { "Attachments" }}</h3>
                 <div class="chips">
-                    {attachments.into_iter().map(|a| view! { <span class="file-chip">"Datei "{a.file_name}<small>{a.size_label}</small></span> }).collect_view()}
+                    {attachments.into_iter().map(|a| view! { <a class="file-chip" href=format!("/api/attachments/{}", a.id) download>"Datei "{a.file_name}<small>{a.size_label}</small></a> }).collect_view()}
                 </div>
             </section>
             <section>

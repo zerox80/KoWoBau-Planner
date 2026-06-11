@@ -3,6 +3,7 @@ use std::{
     env,
     net::TcpStream,
     path::{Path as FsPath, PathBuf},
+    sync::LazyLock,
     time::Duration as StdDuration,
 };
 
@@ -11,9 +12,9 @@ use argon2::{
     Argon2,
 };
 use axum::{
-    extract::{Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{
-        header::{COOKIE, SET_COOKIE},
+        header::{CONTENT_DISPOSITION, CONTENT_TYPE, COOKIE, SET_COOKIE},
         HeaderMap, HeaderValue, StatusCode,
     },
     response::{IntoResponse, Response},
@@ -28,11 +29,10 @@ use rand_core::OsRng;
 use serde::Serialize;
 use serde_json::json;
 use sha2::Sha256;
-use sqlx::{postgres::PgPoolOptions, FromRow, PgPool};
+use sqlx::{postgres::PgPoolOptions, FromRow, PgConnection, PgPool};
 use tokio::{fs, net::TcpListener};
 use tower_http::{
     compression::CompressionLayer,
-    cors::CorsLayer,
     services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
@@ -42,6 +42,12 @@ use uuid::Uuid;
 type HmacSha256 = Hmac<Sha256>;
 
 const COOKIE_NAME: &str = "kowobau_session";
+const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
+
+// Equalizes login timing for unknown emails so account existence cannot be inferred.
+static DUMMY_PASSWORD_HASH: LazyLock<String> = LazyLock::new(|| {
+    hash_password("timing-equalization-placeholder").expect("hashing a constant cannot fail")
+});
 
 #[derive(Debug, Clone)]
 struct AppConfig {
@@ -124,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let cfg = AppConfig::from_env();
+    let cfg = AppConfig::from_env()?;
     fs::create_dir_all(&cfg.upload_dir).await?;
 
     let database_url = env::var("DATABASE_URL")
@@ -151,8 +157,18 @@ async fn main() -> anyhow::Result<()> {
 }
 
 impl AppConfig {
-    fn from_env() -> Self {
-        Self {
+    fn from_env() -> anyhow::Result<Self> {
+        let session_secret = env_var("KOWOBAU_SESSION_SECRET", "CADENCE_SESSION_SECRET")
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "KOWOBAU_SESSION_SECRET must be set (generate one with e.g. `openssl rand -base64 48`)"
+                )
+            })?;
+        if session_secret.len() < 32 {
+            anyhow::bail!("KOWOBAU_SESSION_SECRET must be at least 32 characters long");
+        }
+
+        Ok(Self {
             bind: env_var("KOWOBAU_BIND", "CADENCE_BIND")
                 .unwrap_or_else(|| "127.0.0.1:8080".to_string()),
             static_dir: env_var("KOWOBAU_STATIC_DIR", "CADENCE_STATIC_DIR")
@@ -161,12 +177,11 @@ impl AppConfig {
             upload_dir: env_var("KOWOBAU_UPLOAD_DIR", "CADENCE_UPLOAD_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("crates/backend/uploads")),
-            session_secret: env_var("KOWOBAU_SESSION_SECRET", "CADENCE_SESSION_SECRET")
-                .unwrap_or_else(|| "dev-only-change-me".to_string()),
+            session_secret,
             cookie_secure: env_var("KOWOBAU_COOKIE_SECURE", "CADENCE_COOKIE_SECURE")
                 .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE"))
                 .unwrap_or(false),
-        }
+        })
     }
 }
 
@@ -207,11 +222,13 @@ fn build_router(state: AppState) -> Router {
         )
         .route("/tasks/{id}/comments", post(create_comment))
         .route("/tasks/{id}/attachments", post(upload_attachment))
+        .route("/attachments/{id}", get(download_attachment))
         .route("/notifications/{id}/read", post(read_notification))
         .route("/notifications/read-all", post(read_all_notifications))
         .route("/workspaces/{id}", patch(update_workspace))
         .route("/workspaces/{id}/invites", post(invite_member))
         .route("/memberships/{id}", patch(update_membership))
+        .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
         .with_state(state.clone());
 
     let index = state.cfg.static_dir.join("index.html");
@@ -221,7 +238,6 @@ fn build_router(state: AppState) -> Router {
         .nest("/api", api)
         .fallback_service(spa)
         .layer(CompressionLayer::new())
-        .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
 }
 
@@ -270,28 +286,67 @@ async fn register(
         ));
     }
 
-    let existing: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE email = $1")
-        .bind(&email)
-        .fetch_optional(&state.db)
-        .await?;
-    if existing.is_some() {
-        return Err(AppError::Conflict("email is already registered".into()));
-    }
-
     let user_id = Uuid::new_v4();
     let password_hash = hash_password(&payload.password)?;
-    sqlx::query("INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)")
-        .bind(user_id)
-        .bind(&email)
-        .bind(payload.name.trim())
-        .bind(password_hash)
-        .execute(&state.db)
-        .await?;
 
-    create_workspace_for_user(&state.db, user_id, payload.name.trim()).await?;
-    audit_for_user(&state.db, user_id, "registered", "user", Some(user_id)).await?;
+    let mut tx = state.db.begin().await?;
+    let inserted =
+        sqlx::query("INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4)")
+            .bind(user_id)
+            .bind(&email)
+            .bind(payload.name.trim())
+            .bind(password_hash)
+            .execute(&mut *tx)
+            .await;
+    if let Err(err) = inserted {
+        if is_unique_violation(&err) {
+            return Err(AppError::Conflict("email is already registered".into()));
+        }
+        return Err(err.into());
+    }
 
-    let session_id = create_session(&state.db, user_id).await?;
+    let invites: Vec<(Uuid, Uuid, String)> =
+        sqlx::query_as("SELECT id, workspace_id, role FROM workspace_invites WHERE email = $1")
+            .bind(&email)
+            .fetch_all(&mut *tx)
+            .await?;
+
+    let workspace_id = if invites.is_empty() {
+        create_workspace_for_user(&mut tx, user_id, payload.name.trim()).await?
+    } else {
+        for (invite_id, invite_workspace, role) in &invites {
+            role_from_db(role)?;
+            sqlx::query(
+                "INSERT INTO memberships (id, workspace_id, user_id, role, status, last_active_at) \
+                 VALUES ($1, $2, $3, $4, 'active', now()) \
+                 ON CONFLICT (workspace_id, user_id) DO NOTHING",
+            )
+            .bind(Uuid::new_v4())
+            .bind(invite_workspace)
+            .bind(user_id)
+            .bind(role)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query("DELETE FROM workspace_invites WHERE id = $1")
+                .bind(invite_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        invites[0].1
+    };
+
+    record_audit(
+        &mut *tx,
+        workspace_id,
+        user_id,
+        "registered",
+        "user",
+        Some(user_id),
+    )
+    .await?;
+    let session_id = create_session(&mut tx, user_id).await?;
+    tx.commit().await?;
+
     let user = fetch_user(&state.db, user_id).await?;
     json_with_cookie(&state, session_id, AuthResponse { user })
 }
@@ -307,11 +362,14 @@ async fn login(
             .fetch_optional(&state.db)
             .await?;
     let Some(row) = row else {
+        // Burn the same amount of time as a real verification (see DUMMY_PASSWORD_HASH).
+        let _ = verify_password(&payload.password, &DUMMY_PASSWORD_HASH);
         return Err(AppError::Unauthorized);
     };
 
     verify_password(&payload.password, &row.password_hash)?;
-    let session_id = create_session(&state.db, row.id).await?;
+    let mut conn = state.db.acquire().await?;
+    let session_id = create_session(&mut conn, row.id).await?;
 
     json_with_cookie(
         &state,
@@ -375,7 +433,7 @@ async fn get_task(
 ) -> Result<Json<TaskDto>, AppError> {
     let ctx = require_auth(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_access(&state.db, uuid_from_str(&ctx.user.id)?, task_id).await?;
+    assert_task_read(&state.db, uuid_from_str(&ctx.user.id)?, task_id).await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -387,7 +445,7 @@ async fn create_task(
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let project_id = uuid_from_str(&payload.project_id)?;
-    assert_project_access(&state.db, user_id, project_id).await?;
+    let workspace_id = assert_project_edit(&state.db, user_id, project_id).await?;
 
     if payload.title.trim().is_empty() {
         return Err(AppError::BadRequest("task title is required".into()));
@@ -395,14 +453,27 @@ async fn create_task(
 
     let status_id = uuid_from_str(&payload.status_id)?;
     assert_status_in_project(&state.db, project_id, status_id).await?;
+
+    let mut tx = state.db.begin().await?;
+    // Serializes key generation per project so concurrent creates cannot collide.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")
+        .bind(project_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    let (project_key,): (String,) = sqlx::query_as("SELECT key FROM projects WHERE id = $1")
+        .bind(project_id)
+        .fetch_one(&mut *tx)
+        .await?;
     let next: (i32,) = sqlx::query_as(
-        "SELECT COALESCE(MAX(NULLIF(split_part(key, '-', 2), '')::INT), 100) + 1 \
-         FROM tasks WHERE project_id = $1 AND key LIKE 'KWB-%'",
+        "SELECT COALESCE(MAX(split_part(key, '-', 2)::INT), 100) + 1 \
+         FROM tasks WHERE project_id = $1 AND key LIKE $2 || '-%' \
+         AND split_part(key, '-', 2) ~ '^[0-9]+$'",
     )
     .bind(project_id)
-    .fetch_one(&state.db)
+    .bind(&project_key)
+    .fetch_one(&mut *tx)
     .await?;
-    let key = format!("KWB-{}", next.0);
+    let key = format!("{}-{}", project_key, next.0);
 
     let task_id = Uuid::new_v4();
     sqlx::query(
@@ -423,10 +494,10 @@ async fn create_task(
     .bind(parse_optional_date(payload.due_date.as_deref())?)
     .bind(payload.phase.trim())
     .bind(user_id)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
 
-    replace_assignees(&state.db, task_id, &payload.assignee_ids).await?;
+    replace_assignees(&mut tx, task_id, &payload.assignee_ids).await?;
     for (idx, title) in payload.subtasks.iter().enumerate() {
         if !title.trim().is_empty() {
             sqlx::query(
@@ -436,12 +507,21 @@ async fn create_task(
             .bind(task_id)
             .bind(title.trim())
             .bind(idx as i32)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
         }
     }
 
-    audit_for_user(&state.db, user_id, "created task", "task", Some(task_id)).await?;
+    record_audit(
+        &mut *tx,
+        workspace_id,
+        user_id,
+        "created task",
+        "task",
+        Some(task_id),
+    )
+    .await?;
+    tx.commit().await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -454,8 +534,9 @@ async fn update_task(
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
 
+    let mut tx = state.db.begin().await?;
     if let Some(title) = payload.title {
         if title.trim().is_empty() {
             return Err(AppError::BadRequest("task title is required".into()));
@@ -463,76 +544,85 @@ async fn update_task(
         sqlx::query("UPDATE tasks SET title = $1, updated_at = now() WHERE id = $2")
             .bind(title.trim())
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(description) = payload.description {
         sqlx::query("UPDATE tasks SET description = $1, updated_at = now() WHERE id = $2")
             .bind(description.trim())
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(tag) = payload.tag {
         sqlx::query("UPDATE tasks SET tag = $1, updated_at = now() WHERE id = $2")
             .bind(tag.trim())
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(tag_color) = payload.tag_color {
         sqlx::query("UPDATE tasks SET tag_color = $1, updated_at = now() WHERE id = $2")
             .bind(tag_color.trim())
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(priority) = payload.priority {
         sqlx::query("UPDATE tasks SET priority = $1, updated_at = now() WHERE id = $2")
             .bind(priority_to_db(&priority))
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(status_id) = payload.status_id {
         let status_id = uuid_from_str(&status_id)?;
         let project_id: (Uuid,) = sqlx::query_as("SELECT project_id FROM tasks WHERE id = $1")
             .bind(task_id)
-            .fetch_one(&state.db)
+            .fetch_one(&mut *tx)
             .await?;
-        assert_status_in_project(&state.db, project_id.0, status_id).await?;
+        assert_status_in_project(&mut *tx, project_id.0, status_id).await?;
         sqlx::query("UPDATE tasks SET status_id = $1, updated_at = now() WHERE id = $2")
             .bind(status_id)
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(start_date) = payload.start_date {
         sqlx::query("UPDATE tasks SET start_date = $1, updated_at = now() WHERE id = $2")
             .bind(parse_optional_date(start_date.as_deref())?)
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(due_date) = payload.due_date {
         sqlx::query("UPDATE tasks SET due_date = $1, updated_at = now() WHERE id = $2")
             .bind(parse_optional_date(due_date.as_deref())?)
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(phase) = payload.phase {
         sqlx::query("UPDATE tasks SET phase = $1, updated_at = now() WHERE id = $2")
             .bind(phase.trim())
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(assignee_ids) = payload.assignee_ids {
-        replace_assignees(&state.db, task_id, &assignee_ids).await?;
+        replace_assignees(&mut tx, task_id, &assignee_ids).await?;
     }
 
-    audit_for_user(&state.db, user_id, "updated task", "task", Some(task_id)).await?;
+    record_audit(
+        &mut *tx,
+        workspace_id,
+        user_id,
+        "updated task",
+        "task",
+        Some(task_id),
+    )
+    .await?;
+    tx.commit().await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -545,7 +635,7 @@ async fn move_task(
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     let status_id = uuid_from_str(&payload.status_id)?;
     let project_id: (Uuid,) = sqlx::query_as("SELECT project_id FROM tasks WHERE id = $1")
         .bind(task_id)
@@ -558,7 +648,15 @@ async fn move_task(
         .bind(task_id)
         .execute(&state.db)
         .await?;
-    audit_for_user(&state.db, user_id, "moved task", "task", Some(task_id)).await?;
+    record_audit(
+        &state.db,
+        workspace_id,
+        user_id,
+        "moved task",
+        "task",
+        Some(task_id),
+    )
+    .await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -570,12 +668,20 @@ async fn delete_task(
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     sqlx::query("DELETE FROM tasks WHERE id = $1")
         .bind(task_id)
         .execute(&state.db)
         .await?;
-    audit_for_user(&state.db, user_id, "deleted task", "task", Some(task_id)).await?;
+    record_audit(
+        &state.db,
+        workspace_id,
+        user_id,
+        "deleted task",
+        "task",
+        Some(task_id),
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -588,7 +694,7 @@ async fn create_subtask(
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     if payload.title.trim().is_empty() {
         return Err(AppError::BadRequest("subtask title is required".into()));
     }
@@ -605,8 +711,9 @@ async fn create_subtask(
         .execute(&state.db)
         .await?;
     touch_task(&state.db, task_id).await?;
-    audit_for_user(
+    record_audit(
         &state.db,
+        workspace_id,
         user_id,
         "created subtask",
         "subtask",
@@ -626,7 +733,7 @@ async fn update_subtask(
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
     let subtask_id = uuid_from_str(&subtask_id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
 
     if let Some(title) = payload.title {
         if title.trim().is_empty() {
@@ -648,8 +755,9 @@ async fn update_subtask(
             .await?;
     }
     touch_task(&state.db, task_id).await?;
-    audit_for_user(
+    record_audit(
         &state.db,
+        workspace_id,
         user_id,
         "updated subtask",
         "subtask",
@@ -668,7 +776,7 @@ async fn delete_subtask(
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
     let subtask_id = uuid_from_str(&subtask_id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    assert_task_edit(&state.db, user_id, task_id).await?;
     sqlx::query("DELETE FROM subtasks WHERE id = $1 AND task_id = $2")
         .bind(subtask_id)
         .bind(task_id)
@@ -687,24 +795,34 @@ async fn create_comment(
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     if payload.body.trim().is_empty() {
         return Err(AppError::BadRequest("comment body is required".into()));
     }
+    let mut tx = state.db.begin().await?;
     sqlx::query("INSERT INTO comments (id, task_id, user_id, body) VALUES ($1, $2, $3, $4)")
         .bind(Uuid::new_v4())
         .bind(task_id)
         .bind(user_id)
         .bind(payload.body.trim())
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
     sqlx::query(
         "UPDATE tasks SET comments_count = comments_count + 1, updated_at = now() WHERE id = $1",
     )
     .bind(task_id)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
-    audit_for_user(&state.db, user_id, "commented", "task", Some(task_id)).await?;
+    record_audit(
+        &mut *tx,
+        workspace_id,
+        user_id,
+        "commented",
+        "task",
+        Some(task_id),
+    )
+    .await?;
+    tx.commit().await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -717,7 +835,7 @@ async fn upload_attachment(
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_access(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
 
     while let Some(field) = multipart
         .next_field()
@@ -764,8 +882,9 @@ async fn upload_attachment(
     }
 
     touch_task(&state.db, task_id).await?;
-    audit_for_user(
+    record_audit(
         &state.db,
+        workspace_id,
         user_id,
         "uploaded attachment",
         "task",
@@ -773,6 +892,45 @@ async fn upload_attachment(
     )
     .await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
+}
+
+async fn download_attachment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, AppError> {
+    let ctx = require_auth(&state, &headers).await?;
+    let user_id = uuid_from_str(&ctx.user.id)?;
+    let attachment_id = uuid_from_str(&id)?;
+
+    let row: Option<(Uuid, String, String)> =
+        sqlx::query_as("SELECT task_id, file_name, storage_path FROM attachments WHERE id = $1")
+            .bind(attachment_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let Some((task_id, file_name, storage_path)) = row else {
+        return Err(AppError::NotFound);
+    };
+    assert_task_read(&state.db, user_id, task_id).await?;
+
+    let bytes = fs::read(&storage_path)
+        .await
+        .map_err(|_| AppError::NotFound)?;
+    let mime = mime_guess::from_path(&file_name).first_or_octet_stream();
+
+    let mut res = bytes.into_response();
+    res.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_str(mime.as_ref())
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+    );
+    // file_name is sanitized to ASCII [A-Za-z0-9._-] on upload, so this is header-safe.
+    res.headers_mut().insert(
+        CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!("attachment; filename=\"{file_name}\""))
+            .map_err(|_| AppError::NotFound)?,
+    );
+    Ok(res)
 }
 
 async fn read_notification(
@@ -836,8 +994,9 @@ async fn update_workspace(
             .execute(&state.db)
             .await?;
     }
-    audit_for_user(
+    record_audit(
         &state.db,
+        workspace_id,
         user_id,
         "updated workspace",
         "workspace",
@@ -861,6 +1020,31 @@ async fn invite_member(
     if !email.contains('@') {
         return Err(AppError::BadRequest("invite email is invalid".into()));
     }
+    if matches!(payload.role, Role::Owner) {
+        return Err(AppError::BadRequest(
+            "cannot invite a member as owner".into(),
+        ));
+    }
+    let already_invited: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM workspace_invites WHERE workspace_id = $1 AND email = $2")
+            .bind(workspace_id)
+            .bind(&email)
+            .fetch_optional(&state.db)
+            .await?;
+    if already_invited.is_some() {
+        return Err(AppError::Conflict("invite already exists".into()));
+    }
+    let already_member: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT m.id FROM memberships m JOIN users u ON u.id = m.user_id \
+         WHERE m.workspace_id = $1 AND u.email = $2",
+    )
+    .bind(workspace_id)
+    .bind(&email)
+    .fetch_optional(&state.db)
+    .await?;
+    if already_member.is_some() {
+        return Err(AppError::Conflict("user is already a member".into()));
+    }
     sqlx::query(
         "INSERT INTO workspace_invites (id, workspace_id, email, role, invited_by) VALUES ($1, $2, $3, $4, $5)",
     )
@@ -871,8 +1055,9 @@ async fn invite_member(
     .bind(user_id)
     .execute(&state.db)
     .await?;
-    audit_for_user(
+    record_audit(
         &state.db,
+        workspace_id,
         user_id,
         "invited member",
         "workspace",
@@ -897,7 +1082,31 @@ async fn update_membership(
             .fetch_optional(&state.db)
             .await?
             .ok_or(AppError::NotFound)?;
-    assert_workspace_admin(&state.db, user_id, row.workspace_id).await?;
+    let actor_role = workspace_role(&state.db, user_id, row.workspace_id)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+    if !actor_role.can_admin() {
+        return Err(AppError::Forbidden);
+    }
+    let target_role = role_from_db(&row.role)?;
+    // Only owners may touch owner memberships or hand out the owner role.
+    if (target_role == Role::Owner || payload.role == Role::Owner) && actor_role != Role::Owner {
+        return Err(AppError::Forbidden);
+    }
+    if target_role == Role::Owner && payload.role != Role::Owner {
+        let owners: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM memberships \
+             WHERE workspace_id = $1 AND role = 'owner' AND status = 'active'",
+        )
+        .bind(row.workspace_id)
+        .fetch_one(&state.db)
+        .await?;
+        if owners.0 <= 1 {
+            return Err(AppError::BadRequest(
+                "cannot demote the last owner of the workspace".into(),
+            ));
+        }
+    }
     if row.user_id == user_id && matches!(payload.role, Role::Viewer) {
         return Err(AppError::BadRequest(
             "cannot demote yourself to viewer".into(),
@@ -908,8 +1117,9 @@ async fn update_membership(
         .bind(membership_id)
         .execute(&state.db)
         .await?;
-    audit_for_user(
+    record_audit(
         &state.db,
+        row.workspace_id,
         user_id,
         "updated role",
         "membership",
@@ -953,10 +1163,15 @@ fn parse_session_cookie(headers: &HeaderMap, cfg: &AppConfig) -> Result<Uuid, Ap
         .ok_or(AppError::Unauthorized)?;
 
     let (session_id, signature) = raw.rsplit_once('.').ok_or(AppError::Unauthorized)?;
-    let expected = sign(cfg, session_id)?;
-    if signature != expected {
-        return Err(AppError::Unauthorized);
-    }
+    let sig_bytes = URL_SAFE_NO_PAD
+        .decode(signature)
+        .map_err(|_| AppError::Unauthorized)?;
+    let mut mac = HmacSha256::new_from_slice(cfg.session_secret.as_bytes())
+        .map_err(|_| AppError::Unauthorized)?;
+    mac.update(session_id.as_bytes());
+    // Constant-time comparison; a plain `==` would leak timing information.
+    mac.verify_slice(&sig_bytes)
+        .map_err(|_| AppError::Unauthorized)?;
 
     uuid_from_str(session_id)
 }
@@ -1012,14 +1227,18 @@ fn verify_password(password: &str, hash: &str) -> Result<(), AppError> {
         .map_err(|_| AppError::Unauthorized)
 }
 
-async fn create_session(db: &PgPool, user_id: Uuid) -> Result<Uuid, AppError> {
+async fn create_session(conn: &mut PgConnection, user_id: Uuid) -> Result<Uuid, AppError> {
+    // Opportunistic cleanup keeps the sessions table from growing without bound.
+    sqlx::query("DELETE FROM sessions WHERE expires_at < now()")
+        .execute(&mut *conn)
+        .await?;
     let session_id = Uuid::new_v4();
     let expires_at = Utc::now() + Duration::days(14);
     sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)")
         .bind(session_id)
         .bind(user_id)
         .bind(expires_at)
-        .execute(db)
+        .execute(&mut *conn)
         .await?;
     Ok(session_id)
 }
@@ -1564,43 +1783,70 @@ async fn fetch_audit_events(
         .collect())
 }
 
-async fn assert_project_access(
+async fn project_access(
     db: &PgPool,
     user_id: Uuid,
     project_id: Uuid,
-) -> Result<(), AppError> {
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM projects p JOIN memberships m ON m.workspace_id = p.workspace_id \
+) -> Result<(Uuid, Role), AppError> {
+    let row: Option<(Uuid, String)> = sqlx::query_as(
+        "SELECT p.workspace_id, m.role \
+         FROM projects p JOIN memberships m ON m.workspace_id = p.workspace_id \
          WHERE p.id = $1 AND m.user_id = $2 AND m.status = 'active'",
     )
     .bind(project_id)
     .bind(user_id)
-    .fetch_one(db)
+    .fetch_optional(db)
     .await?;
-    if count.0 == 0 {
+    let Some((workspace_id, role)) = row else {
         return Err(AppError::Forbidden);
-    }
-    Ok(())
+    };
+    Ok((workspace_id, role_from_db(&role)?))
 }
 
-async fn assert_task_access(db: &PgPool, user_id: Uuid, task_id: Uuid) -> Result<(), AppError> {
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM tasks t JOIN projects p ON p.id = t.project_id \
+async fn assert_project_edit(
+    db: &PgPool,
+    user_id: Uuid,
+    project_id: Uuid,
+) -> Result<Uuid, AppError> {
+    let (workspace_id, role) = project_access(db, user_id, project_id).await?;
+    if !role.can_edit() {
+        return Err(AppError::Forbidden);
+    }
+    Ok(workspace_id)
+}
+
+async fn task_access(db: &PgPool, user_id: Uuid, task_id: Uuid) -> Result<(Uuid, Role), AppError> {
+    let row: Option<(Uuid, String)> = sqlx::query_as(
+        "SELECT p.workspace_id, m.role \
+         FROM tasks t JOIN projects p ON p.id = t.project_id \
          JOIN memberships m ON m.workspace_id = p.workspace_id \
          WHERE t.id = $1 AND m.user_id = $2 AND m.status = 'active'",
     )
     .bind(task_id)
     .bind(user_id)
-    .fetch_one(db)
+    .fetch_optional(db)
     .await?;
-    if count.0 == 0 {
+    let Some((workspace_id, role)) = row else {
+        return Err(AppError::Forbidden);
+    };
+    Ok((workspace_id, role_from_db(&role)?))
+}
+
+async fn assert_task_read(db: &PgPool, user_id: Uuid, task_id: Uuid) -> Result<Uuid, AppError> {
+    let (workspace_id, _) = task_access(db, user_id, task_id).await?;
+    Ok(workspace_id)
+}
+
+async fn assert_task_edit(db: &PgPool, user_id: Uuid, task_id: Uuid) -> Result<Uuid, AppError> {
+    let (workspace_id, role) = task_access(db, user_id, task_id).await?;
+    if !role.can_edit() {
         return Err(AppError::Forbidden);
     }
-    Ok(())
+    Ok(workspace_id)
 }
 
 async fn assert_status_in_project(
-    db: &PgPool,
+    exec: impl sqlx::PgExecutor<'_>,
     project_id: Uuid,
     status_id: Uuid,
 ) -> Result<(), AppError> {
@@ -1608,7 +1854,7 @@ async fn assert_status_in_project(
         sqlx::query_as("SELECT COUNT(*) FROM project_statuses WHERE id = $1 AND project_id = $2")
             .bind(status_id)
             .bind(project_id)
-            .fetch_one(db)
+            .fetch_one(exec)
             .await?;
     if count.0 == 0 {
         return Err(AppError::BadRequest(
@@ -1618,90 +1864,116 @@ async fn assert_status_in_project(
     Ok(())
 }
 
-async fn assert_workspace_admin(
+async fn workspace_role(
     db: &PgPool,
     user_id: Uuid,
     workspace_id: Uuid,
-) -> Result<(), AppError> {
+) -> Result<Option<Role>, AppError> {
     let row: Option<(String,)> =
         sqlx::query_as("SELECT role FROM memberships WHERE user_id = $1 AND workspace_id = $2 AND status = 'active'")
             .bind(user_id)
             .bind(workspace_id)
             .fetch_optional(db)
             .await?;
-    let Some((role,)) = row else {
-        return Err(AppError::Forbidden);
-    };
-    if !role_from_db(&role)?.can_admin() {
+    row.map(|(role,)| role_from_db(&role)).transpose()
+}
+
+async fn assert_workspace_admin(
+    db: &PgPool,
+    user_id: Uuid,
+    workspace_id: Uuid,
+) -> Result<(), AppError> {
+    let role = workspace_role(db, user_id, workspace_id)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+    if !role.can_admin() {
         return Err(AppError::Forbidden);
     }
     Ok(())
 }
 
 async fn replace_assignees(
-    db: &PgPool,
+    conn: &mut PgConnection,
     task_id: Uuid,
     assignee_ids: &[String],
 ) -> Result<(), AppError> {
-    sqlx::query("DELETE FROM task_assignees WHERE task_id = $1")
-        .bind(task_id)
-        .execute(db)
-        .await?;
-    for id in assignee_ids {
-        let user_id = uuid_from_str(id)?;
-        sqlx::query(
-            "INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    let mut ids = assignee_ids
+        .iter()
+        .map(|id| uuid_from_str(id))
+        .collect::<Result<Vec<_>, _>>()?;
+    ids.sort_unstable();
+    ids.dedup();
+
+    if !ids.is_empty() {
+        let valid: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM memberships m \
+             JOIN projects p ON p.workspace_id = m.workspace_id \
+             JOIN tasks t ON t.project_id = p.id \
+             WHERE t.id = $1 AND m.status = 'active' AND m.user_id = ANY($2)",
         )
         .bind(task_id)
-        .bind(user_id)
-        .execute(db)
+        .bind(&ids)
+        .fetch_one(&mut *conn)
         .await?;
+        if valid.0 != ids.len() as i64 {
+            return Err(AppError::BadRequest(
+                "assignee is not an active workspace member".into(),
+            ));
+        }
     }
-    touch_task(db, task_id).await?;
+
+    sqlx::query("DELETE FROM task_assignees WHERE task_id = $1")
+        .bind(task_id)
+        .execute(&mut *conn)
+        .await?;
+    for user_id in &ids {
+        sqlx::query("INSERT INTO task_assignees (task_id, user_id) VALUES ($1, $2)")
+            .bind(task_id)
+            .bind(user_id)
+            .execute(&mut *conn)
+            .await?;
+    }
+    touch_task(&mut *conn, task_id).await?;
     Ok(())
 }
 
-async fn touch_task(db: &PgPool, task_id: Uuid) -> Result<(), AppError> {
+async fn touch_task(exec: impl sqlx::PgExecutor<'_>, task_id: Uuid) -> Result<(), AppError> {
     sqlx::query("UPDATE tasks SET updated_at = now() WHERE id = $1")
         .bind(task_id)
-        .execute(db)
+        .execute(exec)
         .await?;
     Ok(())
 }
 
-async fn audit_for_user(
-    db: &PgPool,
-    user_id: Uuid,
+async fn record_audit(
+    exec: impl sqlx::PgExecutor<'_>,
+    workspace_id: Uuid,
+    actor_id: Uuid,
     action: &str,
     entity: &str,
     entity_id: Option<Uuid>,
 ) -> Result<(), AppError> {
-    let workspace_id: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT workspace_id FROM memberships WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
+    sqlx::query(
+        "INSERT INTO audit_events (id, workspace_id, actor_id, action, entity, entity_id, metadata) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
-    .bind(user_id)
-    .fetch_optional(db)
+    .bind(Uuid::new_v4())
+    .bind(workspace_id)
+    .bind(actor_id)
+    .bind(action)
+    .bind(entity)
+    .bind(entity_id)
+    .bind(json!({}))
+    .execute(exec)
     .await?;
-
-    if let Some((workspace_id,)) = workspace_id {
-        sqlx::query(
-            "INSERT INTO audit_events (id, workspace_id, actor_id, action, entity, entity_id, metadata) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        )
-        .bind(Uuid::new_v4())
-        .bind(workspace_id)
-        .bind(user_id)
-        .bind(action)
-        .bind(entity)
-        .bind(entity_id)
-        .bind(json!({}))
-        .execute(db)
-        .await?;
-    }
     Ok(())
 }
 
-async fn create_workspace_for_user(db: &PgPool, user_id: Uuid, name: &str) -> Result<(), AppError> {
+async fn create_workspace_for_user(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+    name: &str,
+) -> Result<Uuid, AppError> {
     let workspace_id = Uuid::new_v4();
     let project_id = Uuid::new_v4();
     let slug = format!("{}-workspace", initials(name).to_lowercase());
@@ -1712,21 +1984,25 @@ async fn create_workspace_for_user(db: &PgPool, user_id: Uuid, name: &str) -> Re
     .bind(workspace_id)
     .bind(format!("{} Workspace", name))
     .bind(slug)
-    .execute(db)
+    .execute(&mut *conn)
     .await?;
     sqlx::query("INSERT INTO memberships (id, workspace_id, user_id, role, status, last_active_at) VALUES ($1, $2, $3, 'owner', 'active', now())")
         .bind(Uuid::new_v4())
         .bind(workspace_id)
         .bind(user_id)
-        .execute(db)
+        .execute(&mut *conn)
         .await?;
     sqlx::query("INSERT INTO projects (id, workspace_id, name, key) VALUES ($1, $2, 'Neues Bauprojekt', 'KWB')")
         .bind(project_id)
         .bind(workspace_id)
-        .execute(db)
+        .execute(&mut *conn)
         .await?;
-    insert_default_statuses(db, project_id).await?;
-    Ok(())
+    insert_default_statuses(&mut *conn, project_id).await?;
+    Ok(workspace_id)
+}
+
+fn is_unique_violation(err: &sqlx::Error) -> bool {
+    matches!(err, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
 }
 
 async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
@@ -1786,7 +2062,7 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
         (
             fixed_uuid("20000000-0000-4000-8000-000000000007")?,
             "david@firma.com",
-            "David König",
+            "David KÃ¶nig",
             Role::Viewer,
         ),
     ];
@@ -1928,17 +2204,17 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
         (
             "KWB-104",
             "TL",
-            "Fotodokumentation ist vollständig, die offenen Punkte sind markiert.",
+            "Fotodokumentation ist vollstÃ¤ndig, die offenen Punkte sind markiert.",
         ),
         (
             "KWB-104",
             "JS",
-            "Bitte die Nachfrist für Elektro mit der Bauleitung abstimmen.",
+            "Bitte die Nachfrist fÃ¼r Elektro mit der Bauleitung abstimmen.",
         ),
         (
             "KWB-107",
             "MR",
-            "Der Terminplan enthält jetzt die neuen Lieferzeiten für Fenster.",
+            "Der Terminplan enthÃ¤lt jetzt die neuen Lieferzeiten fÃ¼r Fenster.",
         ),
         ("KWB-101", "JS", "Die Brandschutzfreigabe ist abgelegt."),
     ];
@@ -2013,7 +2289,7 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
             NotificationKind::Mention,
             Some("MR"),
             Some("KWB-107"),
-            Some("hat dich in einem Kommentar erwähnt"),
+            Some("hat dich in einem Kommentar erwÃ¤hnt"),
             Some("mentioned you in a comment"),
             true,
             "25 minutes",
@@ -2022,7 +2298,7 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
             NotificationKind::Due,
             None,
             Some("KWB-104"),
-            Some("ist heute fällig"),
+            Some("ist heute fÃ¤llig"),
             Some("is due today"),
             true,
             "1 hour",
@@ -2090,7 +2366,10 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
     Ok(())
 }
 
-async fn insert_default_statuses(db: &PgPool, project_id: Uuid) -> Result<(), AppError> {
+async fn insert_default_statuses(
+    conn: &mut PgConnection,
+    project_id: Uuid,
+) -> Result<(), AppError> {
     for (idx, (de, en, color)) in [
         ("Geplant", "Planned", "#8c867b"),
         ("In Arbeit", "In progress", "#6b8aa6"),
@@ -2110,7 +2389,7 @@ async fn insert_default_statuses(db: &PgPool, project_id: Uuid) -> Result<(), Ap
         .bind(en)
         .bind(idx as i32)
         .bind(color)
-        .execute(db)
+        .execute(&mut *conn)
         .await?;
     }
     Ok(())
@@ -2167,11 +2446,11 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000104").unwrap(),
             key: "KWB-104",
-            title: "Mängelaufnahme koordinieren",
+            title: "MÃ¤ngelaufnahme koordinieren",
             title_en: "Coordinate defect walk-through",
-            description: "Begehung für die Wohnungseingänge A-C koordinieren, Fotos sichern und Nachfristen mit den Gewerken abstimmen.",
+            description: "Begehung fÃ¼r die WohnungseingÃ¤nge A-C koordinieren, Fotos sichern und Nachfristen mit den Gewerken abstimmen.",
             description_en: "Coordinate the walk-through for entrances A-C, capture photos and align remediation deadlines with the trades.",
-            tag: "Ausführung",
+            tag: "AusfÃ¼hrung",
             tag_color: "accent",
             priority: Priority::Urgent,
             status_id: status_ids[1],
@@ -2180,11 +2459,11 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "ausfuehrung",
             assignees: &["TL", "JS"],
             subtasks: &[
-                ("Begehungstermin bestätigen", "Confirm walk-through appointment", true),
+                ("Begehungstermin bestÃ¤tigen", "Confirm walk-through appointment", true),
                 ("Fotodokumentation anlegen", "Create photo documentation", true),
-                ("Mängelliste mit Gewerken abstimmen", "Align defect list with trades", true),
-                ("Nachfrist für offene Punkte setzen", "Set deadline for open items", true),
-                ("Rückmeldung an Bauleitung senden", "Send update to site management", false),
+                ("MÃ¤ngelliste mit Gewerken abstimmen", "Align defect list with trades", true),
+                ("Nachfrist fÃ¼r offene Punkte setzen", "Set deadline for open items", true),
+                ("RÃ¼ckmeldung an Bauleitung senden", "Send update to site management", false),
                 ("Abnahme-Nachtermin planen", "Plan follow-up handover", false),
             ],
             comments_count: 4,
@@ -2194,7 +2473,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-107",
             title: "Terminplan aktualisieren",
             title_en: "Update construction schedule",
-            description: "Bauzeitenplan mit neuen Lieferterminen, Pufferzeiten und Abhängigkeiten für Ausbau und Fassade aktualisieren.",
+            description: "Bauzeitenplan mit neuen Lieferterminen, Pufferzeiten und AbhÃ¤ngigkeiten fÃ¼r Ausbau und Fassade aktualisieren.",
             description_en: "Update the construction schedule with new delivery dates, buffers and dependencies for interiors and facade work.",
             tag: "Planung",
             tag_color: "good",
@@ -2206,8 +2485,8 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             assignees: &["MR", "AK"],
             subtasks: &[
                 ("Liefertermine einarbeiten", "Add delivery dates", true),
-                ("Kritischen Pfad prüfen", "Review critical path", true),
-                ("Puffer für Fassade setzen", "Set facade buffer", false),
+                ("Kritischen Pfad prÃ¼fen", "Review critical path", true),
+                ("Puffer fÃ¼r Fassade setzen", "Set facade buffer", false),
                 ("Plan an Team verteilen", "Share schedule with team", false),
             ],
             comments_count: 2,
@@ -2217,7 +2496,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-101",
             title: "Freigabe Brandschutzkonzept",
             title_en: "Approve fire-safety concept",
-            description: "Brandschutznachweise prüfen, Rückfragen klären und die Freigabe im Projektordner ablegen.",
+            description: "Brandschutznachweise prÃ¼fen, RÃ¼ckfragen klÃ¤ren und die Freigabe im Projektordner ablegen.",
             description_en: "Review fire-safety evidence, resolve questions and file the approval in the project folder.",
             tag: "Planung",
             tag_color: "accent",
@@ -2227,7 +2506,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-08",
             phase: "planung",
             assignees: &["JS"],
-            subtasks: &[("Nachweise prüfen", "Review evidence", true), ("Rückfragen klären", "Resolve questions", true), ("Freigabe ablegen", "File approval", true)],
+            subtasks: &[("Nachweise prÃ¼fen", "Review evidence", true), ("RÃ¼ckfragen klÃ¤ren", "Resolve questions", true), ("Freigabe ablegen", "File approval", true)],
             comments_count: 6,
         },
         SeedTask {
@@ -2235,7 +2514,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-102",
             title: "Bemusterung Wohnungen",
             title_en: "Apartment sample selection",
-            description: "Materialvarianten für Boden, Bad und Türen final abstimmen und im Musterkatalog dokumentieren.",
+            description: "Materialvarianten fÃ¼r Boden, Bad und TÃ¼ren final abstimmen und im Musterkatalog dokumentieren.",
             description_en: "Finalize material variants for flooring, bathrooms and doors and document them in the sample catalog.",
             tag: "Bemusterung",
             tag_color: "cool",
@@ -2245,7 +2524,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-05",
             phase: "planung",
             assignees: &["AK"],
-            subtasks: &[("Bodenbelag festlegen", "Select flooring", true), ("Badserie freigeben", "Approve bathroom series", true), ("Türliste exportieren", "Export door list", true)],
+            subtasks: &[("Bodenbelag festlegen", "Select flooring", true), ("Badserie freigeben", "Approve bathroom series", true), ("TÃ¼rliste exportieren", "Export door list", true)],
             comments_count: 1,
         },
         SeedTask {
@@ -2253,7 +2532,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-103",
             title: "Mieterinformation vorbereiten",
             title_en: "Prepare tenant communication",
-            description: "Aushang, Terminfenster und Ansprechpartner für die Modernisierungsarbeiten abstimmen.",
+            description: "Aushang, Terminfenster und Ansprechpartner fÃ¼r die Modernisierungsarbeiten abstimmen.",
             description_en: "Align notices, appointment windows and contacts for the modernization work.",
             tag: "Kommunikation",
             tag_color: "cool",
@@ -2263,7 +2542,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-12",
             phase: "planung",
             assignees: &["AK", "MR"],
-            subtasks: &[("Aushang entwerfen", "Draft notice", true), ("Terminfenster prüfen", "Check appointment windows", false), ("Ansprechpartner ergänzen", "Add contacts", false), ("Freigabe Verwaltung", "Administration approval", false), ("Verteilung planen", "Plan distribution", false)],
+            subtasks: &[("Aushang entwerfen", "Draft notice", true), ("Terminfenster prÃ¼fen", "Check appointment windows", false), ("Ansprechpartner ergÃ¤nzen", "Add contacts", false), ("Freigabe Verwaltung", "Administration approval", false), ("Verteilung planen", "Plan distribution", false)],
             comments_count: 3,
         },
         SeedTask {
@@ -2271,7 +2550,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-105",
             title: "Gewerkefreigabe dokumentieren",
             title_en: "Document trade approvals",
-            description: "Freigaben für Elektro, Sanitär und Trockenbau inklusive Prüfnachweise im Projektraum ablegen.",
+            description: "Freigaben fÃ¼r Elektro, SanitÃ¤r und Trockenbau inklusive PrÃ¼fnachweise im Projektraum ablegen.",
             description_en: "File approvals for electrical, plumbing and drywall work, including verification documents, in the project room.",
             tag: "Vergabe",
             tag_color: "ink",
@@ -2281,15 +2560,15 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-14",
             phase: "vergabe",
             assignees: &["JS"],
-            subtasks: &[("Elektrofreigabe ablegen", "File electrical approval", false), ("Sanitärfreigabe ablegen", "File plumbing approval", false), ("Trockenbau-Nachweis ergänzen", "Add drywall evidence", false)],
+            subtasks: &[("Elektrofreigabe ablegen", "File electrical approval", false), ("SanitÃ¤rfreigabe ablegen", "File plumbing approval", false), ("Trockenbau-Nachweis ergÃ¤nzen", "Add drywall evidence", false)],
             comments_count: 0,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000106").unwrap(),
             key: "KWB-106",
-            title: "Abnahmeprotokoll prüfen",
+            title: "Abnahmeprotokoll prÃ¼fen",
             title_en: "Review handover protocol",
-            description: "Protokoll für Bauabschnitt A gegen Fotodokumentation, Restarbeiten und Unterschriften prüfen.",
+            description: "Protokoll fÃ¼r Bauabschnitt A gegen Fotodokumentation, Restarbeiten und Unterschriften prÃ¼fen.",
             description_en: "Check the phase A handover protocol against photos, remaining work and signatures.",
             tag: "Abnahme",
             tag_color: "good",
@@ -2299,7 +2578,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-10",
             phase: "abnahme",
             assignees: &["MR"],
-            subtasks: &[("Fotos abgleichen", "Compare photos", true), ("Unterschriften prüfen", "Check signatures", true), ("Restarbeiten markieren", "Mark remaining work", false)],
+            subtasks: &[("Fotos abgleichen", "Compare photos", true), ("Unterschriften prÃ¼fen", "Check signatures", true), ("Restarbeiten markieren", "Mark remaining work", false)],
             comments_count: 2,
         },
         SeedTask {
@@ -2307,7 +2586,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-108",
             title: "Restarbeiten kontrollieren",
             title_en: "Check remaining work",
-            description: "Offene Punkte aus der Abnahme in Treppenhaus und Keller prüfen und Status aktualisieren.",
+            description: "Offene Punkte aus der Abnahme in Treppenhaus und Keller prÃ¼fen und Status aktualisieren.",
             description_en: "Check open handover items in the stairwell and basement and update their status.",
             tag: "QA",
             tag_color: "cool",
@@ -2317,7 +2596,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-12",
             phase: "abnahme",
             assignees: &["SB"],
-            subtasks: &[("Treppenhaus prüfen", "Check stairwell", true), ("Keller prüfen", "Check basement", true), ("Status im Protokoll setzen", "Update protocol status", false)],
+            subtasks: &[("Treppenhaus prÃ¼fen", "Check stairwell", true), ("Keller prÃ¼fen", "Check basement", true), ("Status im Protokoll setzen", "Update protocol status", false)],
             comments_count: 1,
         },
         SeedTask {
@@ -2325,7 +2604,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-109",
             title: "Baustellenbericht erstellen",
             title_en: "Create site report",
-            description: "Wochenbericht mit Wetter, Fortschritt, Risiken und Fotos für Eigentümer und Verwaltung erstellen.",
+            description: "Wochenbericht mit Wetter, Fortschritt, Risiken und Fotos fÃ¼r EigentÃ¼mer und Verwaltung erstellen.",
             description_en: "Create the weekly report with weather, progress, risks and photos for owners and administration.",
             tag: "Bericht",
             tag_color: "ink",
@@ -2335,7 +2614,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-07",
             phase: "ausfuehrung",
             assignees: &["DK"],
-            subtasks: &[("Fotoliste ergänzen", "Add photo list", true), ("Risiken aktualisieren", "Update risks", true)],
+            subtasks: &[("Fotoliste ergÃ¤nzen", "Add photo list", true), ("Risiken aktualisieren", "Update risks", true)],
             comments_count: 0,
         },
         SeedTask {
@@ -2343,7 +2622,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             key: "KWB-110",
             title: "Bauabschnitt B vorbereiten",
             title_en: "Prepare construction phase B",
-            description: "Baulogistik, Materialabruf, Sicherheitsunterweisung und Kommunikationsplan für Bauabschnitt B vorbereiten.",
+            description: "Baulogistik, Materialabruf, Sicherheitsunterweisung und Kommunikationsplan fÃ¼r Bauabschnitt B vorbereiten.",
             description_en: "Prepare site logistics, material call-offs, safety briefing and communication plan for construction phase B.",
             tag: "Meilenstein",
             tag_color: "accent",
@@ -2353,7 +2632,7 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             due: "2026-06-18",
             phase: "ausfuehrung",
             assignees: &["AL", "JS"],
-            subtasks: &[("Materialabruf prüfen", "Check material call-offs", false), ("Logistikfläche reservieren", "Reserve logistics area", false), ("Sicherheitsunterweisung planen", "Schedule safety briefing", false), ("Mieterinformation versenden", "Send tenant notice", false)],
+            subtasks: &[("Materialabruf prÃ¼fen", "Check material call-offs", false), ("LogistikflÃ¤che reservieren", "Reserve logistics area", false), ("Sicherheitsunterweisung planen", "Schedule safety briefing", false), ("Mieterinformation versenden", "Send tenant notice", false)],
             comments_count: 1,
         },
     ]
@@ -2574,5 +2853,79 @@ mod tests {
     #[test]
     fn file_names_are_sanitized() {
         assert_eq!(sanitize_file_name("../bad name.pdf"), "bad_name.pdf");
+    }
+
+    #[test]
+    fn viewer_cannot_edit_but_members_and_up_can() {
+        assert!(Role::Owner.can_edit());
+        assert!(Role::Admin.can_edit());
+        assert!(Role::Member.can_edit());
+        assert!(!Role::Viewer.can_edit());
+
+        assert!(Role::Owner.can_admin());
+        assert!(Role::Admin.can_admin());
+        assert!(!Role::Member.can_admin());
+        assert!(!Role::Viewer.can_admin());
+    }
+
+    fn test_config() -> AppConfig {
+        AppConfig {
+            bind: "127.0.0.1:0".into(),
+            static_dir: PathBuf::from("."),
+            upload_dir: PathBuf::from("."),
+            session_secret: "test-secret-with-at-least-32-characters!".into(),
+            cookie_secure: false,
+        }
+    }
+
+    fn headers_with_cookie(cookie: &str) -> HeaderMap {
+        let pair = cookie.split(';').next().expect("cookie pair");
+        let mut headers = HeaderMap::new();
+        headers.insert(COOKIE, HeaderValue::from_str(pair).expect("valid header"));
+        headers
+    }
+
+    #[test]
+    fn session_cookie_roundtrip() {
+        let cfg = test_config();
+        let session_id = Uuid::new_v4();
+        let cookie = build_cookie(&cfg, session_id).expect("cookie builds");
+        let headers = headers_with_cookie(&cookie);
+        let parsed = parse_session_cookie(&headers, &cfg).expect("cookie parses");
+        assert_eq!(parsed, session_id);
+    }
+
+    #[test]
+    fn tampered_signature_is_rejected() {
+        let cfg = test_config();
+        let session_id = Uuid::new_v4();
+        let cookie = build_cookie(&cfg, session_id).expect("cookie builds");
+        let other_id = Uuid::new_v4().to_string();
+        let signature = cookie
+            .split(';')
+            .next()
+            .and_then(|pair| pair.rsplit_once('.'))
+            .map(|(_, sig)| sig.to_string())
+            .expect("signature present");
+        let forged = format!("{COOKIE_NAME}={other_id}.{signature}");
+        let headers = headers_with_cookie(&forged);
+        assert!(matches!(
+            parse_session_cookie(&headers, &cfg),
+            Err(AppError::Unauthorized)
+        ));
+    }
+
+    #[test]
+    fn cookie_with_wrong_secret_is_rejected() {
+        let cfg = test_config();
+        let session_id = Uuid::new_v4();
+        let cookie = build_cookie(&cfg, session_id).expect("cookie builds");
+        let mut other_cfg = test_config();
+        other_cfg.session_secret = "another-secret-with-at-least-32-chars!!".into();
+        let headers = headers_with_cookie(&cookie);
+        assert!(matches!(
+            parse_session_cookie(&headers, &other_cfg),
+            Err(AppError::Unauthorized)
+        ));
     }
 }
