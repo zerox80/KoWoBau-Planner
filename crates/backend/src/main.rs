@@ -78,6 +78,7 @@ struct AppConfig {
     session_secret: String,
     cookie_secure: bool,
     seed_demo: bool,
+    registration_enabled: bool,
     max_workspace_storage_bytes: i64,
     // When true (behind our nginx), the client IP for rate limiting is taken
     // from X-Real-IP instead of the peer address.
@@ -238,6 +239,12 @@ impl AppConfig {
             seed_demo: env_var("KOWOBAU_SEED_DEMO", "CADENCE_SEED_DEMO")
                 .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE"))
                 .unwrap_or(false),
+            registration_enabled: env_var(
+                "KOWOBAU_REGISTRATION_ENABLED",
+                "CADENCE_REGISTRATION_ENABLED",
+            )
+            .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE"))
+            .unwrap_or(true),
             max_workspace_storage_bytes: env_var(
                 "KOWOBAU_MAX_WORKSPACE_STORAGE_BYTES",
                 "CADENCE_MAX_WORKSPACE_STORAGE_BYTES",
@@ -331,7 +338,10 @@ fn build_router(state: AppState) -> Router {
         .route("/notifications/read-all", post(read_all_notifications))
         .route("/workspaces/{id}", patch(update_workspace))
         .route("/workspaces/{id}/invites", post(invite_member))
-        .route("/memberships/{id}", patch(update_membership))
+        .route(
+            "/memberships/{id}",
+            patch(update_membership).delete(remove_membership),
+        )
         .layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -526,6 +536,15 @@ async fn register(
             }
             None => None,
         };
+
+    if invite.is_none() && !state.cfg.registration_enabled {
+        let (user_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+            .fetch_one(&state.db)
+            .await?;
+        if user_count > 0 {
+            return Err(AppError::Forbidden);
+        }
+    }
 
     let user_id = Uuid::new_v4();
     let password_hash = hash_password_async(&state, payload.password.clone()).await?;
@@ -1649,6 +1668,85 @@ async fn update_membership(
     .await?;
     tx.commit().await?;
     Ok(Json(fetch_member(&state.db, membership_id).await?))
+}
+
+async fn remove_membership(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let ctx = require_auth(&state, &headers).await?;
+    let user_id = uuid_from_str(&ctx.user.id)?;
+    let membership_id = uuid_from_str(&id)?;
+    let mut tx = state.db.begin().await?;
+    let row: MembershipWorkspaceRow = sqlx::query_as(
+        "SELECT workspace_id, user_id, role FROM memberships WHERE id = $1 FOR UPDATE",
+    )
+    .bind(membership_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let actor_role = workspace_role(&state.db, user_id, row.workspace_id)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+    if !actor_role.can_admin() {
+        return Err(AppError::Forbidden);
+    }
+    let target_role = role_from_db(&row.role)?;
+    if target_role == Role::Owner && actor_role != Role::Owner {
+        return Err(AppError::Forbidden);
+    }
+    if row.user_id == user_id {
+        return Err(AppError::BadRequest(
+            "cannot remove your own membership".into(),
+        ));
+    }
+    if target_role == Role::Owner {
+        let owners: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT id FROM memberships \
+             WHERE workspace_id = $1 AND role = 'owner' AND status = 'active' FOR UPDATE",
+        )
+        .bind(row.workspace_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        if owners.len() <= 1 {
+            return Err(AppError::BadRequest(
+                "cannot remove the last owner of the workspace".into(),
+            ));
+        }
+    }
+    sqlx::query(
+        "DELETE FROM task_assignees ta USING tasks t, projects p \
+         WHERE ta.task_id = t.id AND t.project_id = p.id \
+         AND p.workspace_id = $1 AND ta.user_id = $2",
+    )
+    .bind(row.workspace_id)
+    .bind(row.user_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE tickets t SET assignee_id = NULL FROM projects p \
+         WHERE t.project_id = p.id AND p.workspace_id = $1 AND t.assignee_id = $2",
+    )
+    .bind(row.workspace_id)
+    .bind(row.user_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("DELETE FROM memberships WHERE id = $1")
+        .bind(membership_id)
+        .execute(&mut *tx)
+        .await?;
+    record_audit(
+        &mut *tx,
+        row.workspace_id,
+        user_id,
+        "removed member",
+        "membership",
+        Some(membership_id),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn require_auth(state: &AppState, headers: &HeaderMap) -> Result<AuthContext, AppError> {
@@ -3618,6 +3716,7 @@ mod tests {
             session_secret: "test-secret-with-at-least-32-characters!".into(),
             cookie_secure: false,
             seed_demo: false,
+            registration_enabled: true,
             max_workspace_storage_bytes: MAX_WORKSPACE_STORAGE_BYTES,
             trust_proxy: false,
             public_origin: None,

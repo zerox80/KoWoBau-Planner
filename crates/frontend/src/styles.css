@@ -212,9 +212,14 @@ p { margin: 0; }
 .member-card small { color: var(--ink-2); }
 .admin-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
 .admin-grid .panel:last-child { grid-column: 1 / -1; }
-.admin-row { display: grid; grid-template-columns: 28px 1fr 1.4fr .8fr; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.admin-row { display: grid; grid-template-columns: 28px 1fr 1.4fr minmax(120px,.8fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .admin-row small { color: var(--ink-3); }
 .admin-row b { color: var(--accent-press); }
+.role-select, .invite-box input, .invite-box select { border: 0; outline: 0; border-radius: 9px; background: var(--surface-2); padding: 9px 10px; box-shadow: inset 0 0 0 1px var(--line); }
+.danger-link { color: var(--accent-press); font-weight: 800; }
+.invite-box { display: grid; grid-template-columns: 1fr 130px auto; gap: 10px; align-items: center; }
+.invite-result { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); font-weight: 700; overflow-wrap: anywhere; }
+.muted { color: var(--ink-2); }
 .sys-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
 .sys-grid span { background: var(--surface-2); border-radius: 10px; padding: 12px; box-shadow: inset 0 0 0 1px var(--line); }
 .sys-grid small, .sys-grid strong { display: block; }
@@ -272,6 +277,7 @@ p { margin: 0; }
   .side-label { grid-column: 1 / -1; }
   .topbar { flex-wrap: wrap; }
   .board-grid, .stats-row, .two-col, .admin-grid { grid-template-columns: 1fr; }
+  .admin-row, .invite-box { grid-template-columns: 1fr; align-items: stretch; }
   .ticket-head { display: none; }
   .ticket-row { grid-template-columns: 1fr; align-items: start; }
   .calendar-grid { grid-template-columns: repeat(2, 1fr); }
