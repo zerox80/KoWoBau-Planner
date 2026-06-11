@@ -84,7 +84,11 @@ Before enabling it:
 
 ## Demo account
 
-The backend seeds the demo workspace on an empty database.
+The demo seed is disabled by default. To try the demo, set `KOWOBAU_SEED_DEMO=true`
+(in `.env` or the environment) before the first start on an **empty** database:
 
 - Email: `alex@firma.com`
 - Password: `password123`
+
+Do not enable the seed in production: it creates seven well-known accounts with
+this public password.

@@ -142,8 +142,8 @@ fn auth_shell(
 ) -> View {
     let (mode, set_mode) = create_signal(AuthMode::Login);
     let (name, set_name) = create_signal(String::new());
-    let (email, set_email) = create_signal("alex@firma.com".to_string());
-    let (password, set_password) = create_signal("password123".to_string());
+    let (email, set_email) = create_signal(String::new());
+    let (password, set_password) = create_signal(String::new());
     let (busy, set_busy) = create_signal(false);
     let (local_error, set_local_error) = create_signal::<Option<String>>(None);
 
@@ -1166,16 +1166,20 @@ fn optimistic_move(
     set_data: WriteSignal<Option<BootstrapDto>>,
     set_error: WriteSignal<Option<String>>,
 ) {
+    // Remembered so the card can snap back if the server rejects the move.
+    let mut previous: Option<(String, i32)> = None;
     set_data.update(|data| {
         if let Some(data) = data {
             if let Some(status) = data.statuses.iter().find(|s| s.id == status_id) {
                 if let Some(task) = data.tasks.iter_mut().find(|t| t.id == task_id) {
+                    previous = Some((task.status_id.clone(), task.status_position));
                     task.status_id = status_id.clone();
                     task.status_position = status.position;
                 }
             }
         }
     });
+    let revert_task_id = task_id.clone();
     spawn_local(async move {
         match api_post::<_, TaskDto>(
             &format!("/api/tasks/{task_id}/move"),
@@ -1194,6 +1198,18 @@ fn optimistic_move(
                 set_error.set(None);
             }
             Err(err) => {
+                if let Some((prev_status_id, prev_position)) = previous {
+                    set_data.update(|data| {
+                        if let Some(data) = data {
+                            if let Some(task) =
+                                data.tasks.iter_mut().find(|t| t.id == revert_task_id)
+                            {
+                                task.status_id = prev_status_id;
+                                task.status_position = prev_position;
+                            }
+                        }
+                    });
+                }
                 set_error.set(Some(err.message));
             }
         }
@@ -1534,8 +1550,20 @@ fn header_subtitle(boot: &BootstrapDto, nav: NavView, lang: Lang) -> String {
             boot.tasks.len(),
             boot.statuses.len()
         ),
-        (NavView::Calendar, Lang::De) => "Fälligkeiten und Meilensteine im Juni".into(),
-        (NavView::Calendar, Lang::En) => "Due dates and milestones in June".into(),
+        (NavView::Calendar, Lang::De) => {
+            let (_, m, _) = now_date();
+            format!(
+                "Fälligkeiten und Meilensteine im {}",
+                MONTHS_DE_FULL[(m - 1) as usize]
+            )
+        }
+        (NavView::Calendar, Lang::En) => {
+            let (_, m, _) = now_date();
+            format!(
+                "Due dates and milestones in {}",
+                MONTHS_EN_FULL[(m - 1) as usize]
+            )
+        }
         (NavView::Gantt, Lang::De) => "Zeitplan, Abhängigkeiten und Meilensteine".into(),
         (NavView::Gantt, Lang::En) => "Schedule, dependencies and milestones".into(),
         (NavView::Roadmap, Lang::De) => "Initiativen nach Zeithorizont".into(),
@@ -1656,6 +1684,34 @@ const MONTHS_DE: [&str; 12] = [
 ];
 const MONTHS_EN: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+const MONTHS_DE_FULL: [&str; 12] = [
+    "Januar",
+    "Februar",
+    "März",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
+];
+const MONTHS_EN_FULL: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ];
 
 fn fmt_date(iso: &str, lang: Lang) -> String {

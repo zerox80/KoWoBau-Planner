@@ -49,6 +49,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 const COOKIE_NAME: &str = "kowobau_session";
 const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
+const MAX_WORKSPACE_STORAGE_BYTES: i64 = 2 * 1024 * 1024 * 1024;
 const ALLOWED_UPLOAD_EXTENSIONS: &[&str] = &[
     "pdf", "png", "jpg", "jpeg", "webp", "svg", "csv", "xlsx", "docx", "txt", "json", "zip", "dwg",
     "ifc",
@@ -66,6 +67,8 @@ struct AppConfig {
     upload_dir: PathBuf,
     session_secret: String,
     cookie_secure: bool,
+    seed_demo: bool,
+    max_workspace_storage_bytes: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -159,7 +162,12 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     sqlx::migrate!("./migrations").run(&db).await?;
-    seed_demo(&db).await?;
+    if cfg.seed_demo {
+        tracing::info!("KOWOBAU_SEED_DEMO is enabled; seeding demo data on empty database");
+        seed_demo(&db).await?;
+    } else {
+        tracing::info!("demo seed disabled (set KOWOBAU_SEED_DEMO=true to enable)");
+    }
 
     let state = AppState { db, cfg };
     let app = build_router(state.clone());
@@ -198,6 +206,15 @@ impl AppConfig {
             cookie_secure: env_var("KOWOBAU_COOKIE_SECURE", "CADENCE_COOKIE_SECURE")
                 .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE"))
                 .unwrap_or(false),
+            seed_demo: env_var("KOWOBAU_SEED_DEMO", "CADENCE_SEED_DEMO")
+                .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE"))
+                .unwrap_or(false),
+            max_workspace_storage_bytes: env_var(
+                "KOWOBAU_MAX_WORKSPACE_STORAGE_BYTES",
+                "CADENCE_MAX_WORKSPACE_STORAGE_BYTES",
+            )
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(MAX_WORKSPACE_STORAGE_BYTES),
         })
     }
 }
@@ -812,15 +829,18 @@ async fn update_subtask(
     let subtask_id = uuid_from_str(&subtask_id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
 
-    if let Some(title) = payload.title {
+    if let Some(title) = &payload.title {
         if title.trim().is_empty() {
             return Err(AppError::BadRequest("subtask title is required".into()));
         }
+    }
+    let mut tx = state.db.begin().await?;
+    if let Some(title) = payload.title {
         sqlx::query("UPDATE subtasks SET title = $1 WHERE id = $2 AND task_id = $3")
             .bind(title.trim())
             .bind(subtask_id)
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(done) = payload.done {
@@ -828,12 +848,12 @@ async fn update_subtask(
             .bind(done)
             .bind(subtask_id)
             .bind(task_id)
-            .execute(&state.db)
+            .execute(&mut *tx)
             .await?;
     }
-    touch_task(&state.db, task_id).await?;
+    touch_task(&mut *tx, task_id).await?;
     record_audit(
-        &state.db,
+        &mut *tx,
         workspace_id,
         user_id,
         "updated subtask",
@@ -841,6 +861,7 @@ async fn update_subtask(
         Some(subtask_id),
     )
     .await?;
+    tx.commit().await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -853,13 +874,24 @@ async fn delete_subtask(
     let user_id = uuid_from_str(&ctx.user.id)?;
     let task_id = uuid_from_str(&id)?;
     let subtask_id = uuid_from_str(&subtask_id)?;
-    assert_task_edit(&state.db, user_id, task_id).await?;
+    let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
+    let mut tx = state.db.begin().await?;
     sqlx::query("DELETE FROM subtasks WHERE id = $1 AND task_id = $2")
         .bind(subtask_id)
         .bind(task_id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await?;
-    touch_task(&state.db, task_id).await?;
+    touch_task(&mut *tx, task_id).await?;
+    record_audit(
+        &mut *tx,
+        workspace_id,
+        user_id,
+        "deleted subtask",
+        "subtask",
+        Some(subtask_id),
+    )
+    .await?;
+    tx.commit().await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -945,6 +977,23 @@ async fn store_attachments(
     written_paths: &mut Vec<PathBuf>,
 ) -> Result<(), AppError> {
     let mut tx = state.db.begin().await?;
+    // Serializes uploads per workspace so concurrent requests cannot jointly
+    // exceed the storage quota checked below.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")
+        .bind(workspace_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    let (used_bytes,): (i64,) = sqlx::query_as(
+        "SELECT COALESCE(SUM(a.size_bytes), 0) \
+         FROM attachments a \
+         JOIN tasks t ON t.id = a.task_id \
+         JOIN projects p ON p.id = t.project_id \
+         WHERE p.workspace_id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let mut remaining = (state.cfg.max_workspace_storage_bytes - used_bytes).max(0) as u64;
     while let Some(mut field) = multipart
         .next_field()
         .await
@@ -971,6 +1020,11 @@ async fn store_attachments(
             .map_err(|e| AppError::BadRequest(e.to_string()))?
         {
             size_bytes += chunk.len() as u64;
+            if size_bytes > remaining {
+                return Err(AppError::BadRequest(
+                    "workspace storage limit exceeded".into(),
+                ));
+            }
             file.write_all(&chunk).await?;
         }
         file.flush().await?;
@@ -980,6 +1034,7 @@ async fn store_attachments(
             written_paths.pop();
             continue;
         }
+        remaining -= size_bytes;
 
         let kind = if mime_guess::from_path(&file_name)
             .first_or_octet_stream()
@@ -1172,6 +1227,37 @@ async fn invite_member(
     .await?;
     if already_member.is_some() {
         return Err(AppError::Conflict("user is already a member".into()));
+    }
+    // Existing users can never redeem an invite row (redemption happens at
+    // registration), so add them as members directly instead.
+    let existing_user: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE email = $1")
+        .bind(&email)
+        .fetch_optional(&state.db)
+        .await?;
+    if let Some((invitee_id,)) = existing_user {
+        let mut tx = state.db.begin().await?;
+        sqlx::query(
+            "INSERT INTO memberships (id, workspace_id, user_id, role, status) \
+             VALUES ($1, $2, $3, $4, 'active') \
+             ON CONFLICT (workspace_id, user_id) DO NOTHING",
+        )
+        .bind(Uuid::new_v4())
+        .bind(workspace_id)
+        .bind(invitee_id)
+        .bind(role_to_db(&payload.role))
+        .execute(&mut *tx)
+        .await?;
+        record_audit(
+            &mut *tx,
+            workspace_id,
+            user_id,
+            "added member",
+            "membership",
+            Some(invitee_id),
+        )
+        .await?;
+        tx.commit().await?;
+        return Ok(StatusCode::NO_CONTENT);
     }
     sqlx::query(
         "INSERT INTO workspace_invites (id, workspace_id, email, role, invited_by) VALUES ($1, $2, $3, $4, $5)",
@@ -1589,11 +1675,6 @@ async fn fetch_workspace(db: &PgPool, id: Uuid) -> Result<WorkspaceDto, AppError
 }
 
 async fn fetch_bootstrap(db: &PgPool, user_id: Uuid) -> Result<BootstrapDto, AppError> {
-    sqlx::query("UPDATE memberships SET last_active_at = now() WHERE user_id = $1")
-        .bind(user_id)
-        .execute(db)
-        .await?;
-
     let user = fetch_user(db, user_id).await?;
     let membership: MembershipWorkspaceRow = sqlx::query_as(
         "SELECT workspace_id, user_id, role \
@@ -1603,6 +1684,14 @@ async fn fetch_bootstrap(db: &PgPool, user_id: Uuid) -> Result<BootstrapDto, App
     .fetch_optional(db)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    sqlx::query(
+        "UPDATE memberships SET last_active_at = now() WHERE user_id = $1 AND workspace_id = $2",
+    )
+    .bind(user_id)
+    .bind(membership.workspace_id)
+    .execute(db)
+    .await?;
 
     let workspace = fetch_workspace(db, membership.workspace_id).await?;
     let project_row: ProjectRow = sqlx::query_as(
@@ -2321,8 +2410,8 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
         task_ids.insert(task.key, task.id);
         sqlx::query(
             "INSERT INTO tasks \
-             (id, project_id, key, title, title_en, description, description_en, tag, tag_color, priority, status_id, start_date, due_date, phase, created_by, comments_count, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now() - interval '3 days', now() - interval '25 minutes')",
+             (id, project_id, key, title, title_en, description, description_en, tag, tag_color, priority, status_id, start_date, due_date, phase, created_by, created_at, updated_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now() - interval '3 days', now() - interval '25 minutes')",
         )
         .bind(task.id)
         .bind(project_id)
@@ -2339,7 +2428,6 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
         .bind(today + Duration::days(task.due_offset))
         .bind(task.phase)
         .bind(people_by_initial(task.assignees[0])?)
-        .bind(task.comments_count)
         .execute(db)
         .await?;
 
@@ -2413,6 +2501,14 @@ async fn seed_demo(db: &PgPool) -> Result<(), AppError> {
         .execute(db)
         .await?;
     }
+    // Keep the denormalized counter in sync with the comments actually seeded.
+    sqlx::query(
+        "UPDATE tasks SET comments_count = \
+         (SELECT COUNT(*) FROM comments c WHERE c.task_id = tasks.id) WHERE project_id = $1",
+    )
+    .bind(project_id)
+    .execute(db)
+    .await?;
 
     seed_attachment(db, task_ids["KWB-104"], "maengelprotokoll.pdf", 240_000).await?;
     seed_attachment(db, task_ids["KWB-104"], "fotoanhang-liste.json", 18_000).await?;
@@ -2616,7 +2712,6 @@ struct SeedTask {
     phase: &'static str,
     assignees: &'static [&'static str],
     subtasks: &'static [(&'static str, &'static str, bool)],
-    comments_count: i64,
 }
 
 fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
@@ -2645,7 +2740,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
                 ("Rückmeldung an Bauleitung senden", "Send update to site management", false),
                 ("Abnahme-Nachtermin planen", "Plan follow-up handover", false),
             ],
-            comments_count: 4,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000107").unwrap(),
@@ -2668,7 +2762,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
                 ("Puffer für Fassade setzen", "Set facade buffer", false),
                 ("Plan an Team verteilen", "Share schedule with team", false),
             ],
-            comments_count: 2,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000101").unwrap(),
@@ -2686,7 +2779,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "planung",
             assignees: &["JS"],
             subtasks: &[("Nachweise prüfen", "Review evidence", true), ("Rückfragen klären", "Resolve questions", true), ("Freigabe ablegen", "File approval", true)],
-            comments_count: 6,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000102").unwrap(),
@@ -2704,7 +2796,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "planung",
             assignees: &["AK"],
             subtasks: &[("Bodenbelag festlegen", "Select flooring", true), ("Badserie freigeben", "Approve bathroom series", true), ("Türliste exportieren", "Export door list", true)],
-            comments_count: 1,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000103").unwrap(),
@@ -2722,7 +2813,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "planung",
             assignees: &["AK", "MR"],
             subtasks: &[("Aushang entwerfen", "Draft notice", true), ("Terminfenster prüfen", "Check appointment windows", false), ("Ansprechpartner ergänzen", "Add contacts", false), ("Freigabe Verwaltung", "Administration approval", false), ("Verteilung planen", "Plan distribution", false)],
-            comments_count: 3,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000105").unwrap(),
@@ -2740,7 +2830,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "vergabe",
             assignees: &["JS"],
             subtasks: &[("Elektrofreigabe ablegen", "File electrical approval", false), ("Sanitärfreigabe ablegen", "File plumbing approval", false), ("Trockenbau-Nachweis ergänzen", "Add drywall evidence", false)],
-            comments_count: 0,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000106").unwrap(),
@@ -2758,7 +2847,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "abnahme",
             assignees: &["MR"],
             subtasks: &[("Fotos abgleichen", "Compare photos", true), ("Unterschriften prüfen", "Check signatures", true), ("Restarbeiten markieren", "Mark remaining work", false)],
-            comments_count: 2,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000108").unwrap(),
@@ -2776,7 +2864,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "abnahme",
             assignees: &["SB"],
             subtasks: &[("Treppenhaus prüfen", "Check stairwell", true), ("Keller prüfen", "Check basement", true), ("Status im Protokoll setzen", "Update protocol status", false)],
-            comments_count: 1,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000109").unwrap(),
@@ -2794,7 +2881,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "ausfuehrung",
             assignees: &["DK"],
             subtasks: &[("Fotoliste ergänzen", "Add photo list", true), ("Risiken aktualisieren", "Update risks", true)],
-            comments_count: 0,
         },
         SeedTask {
             id: fixed_uuid("30000000-0000-4000-8000-000000000110").unwrap(),
@@ -2812,7 +2898,6 @@ fn seed_tasks(project_id: Uuid, status_ids: [Uuid; 4]) -> Vec<SeedTask> {
             phase: "ausfuehrung",
             assignees: &["AL", "JS"],
             subtasks: &[("Materialabruf prüfen", "Check material call-offs", false), ("Logistikfläche reservieren", "Reserve logistics area", false), ("Sicherheitsunterweisung planen", "Schedule safety briefing", false), ("Mieterinformation versenden", "Send tenant notice", false)],
-            comments_count: 1,
         },
     ]
 }
@@ -3080,6 +3165,8 @@ mod tests {
             upload_dir: PathBuf::from("."),
             session_secret: "test-secret-with-at-least-32-characters!".into(),
             cookie_secure: false,
+            seed_demo: false,
+            max_workspace_storage_bytes: MAX_WORKSPACE_STORAGE_BYTES,
         }
     }
 
