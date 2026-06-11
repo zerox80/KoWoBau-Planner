@@ -901,12 +901,18 @@ fn create_task_modal(
             .unwrap_or_default(),
     );
     let (busy, set_busy) = create_signal(false);
+    let (local_error, set_local_error) = create_signal::<Option<String>>(None);
 
     let create = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_error.set(Some("Bitte gib einen Aufgabentitel ein.".into()));
+            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
+                "Bitte gib zuerst einen Aufgabentitel ein.".into()
+            } else {
+                "Add a task title first.".into()
+            }));
             return;
         }
+        set_local_error.set(None);
         set_busy.set(true);
         let payload = CreateTaskRequest {
             project_id: boot.project.id.clone(),
@@ -934,7 +940,10 @@ fn create_task_modal(
                     set_show_create.set(false);
                     set_error.set(None);
                 }
-                Err(err) => set_error.set(Some(err.message)),
+                Err(err) => {
+                    set_local_error.set(Some(err.message.clone()));
+                    set_error.set(Some(err.message));
+                }
             }
             set_busy.set(false);
         });
@@ -948,8 +957,20 @@ fn create_task_modal(
                     <h2>{move || if lang.get() == Lang::De { "Neue Aufgabe" } else { "New task" }}</h2>
                     <button on:click=move |_| set_show_create.set(false)>"×"</button>
                 </header>
-                <input class="title-input" placeholder=move || if lang.get() == Lang::De { "Woran wird gearbeitet?" } else { "What are we working on?" } prop:value=title on:input=move |ev| set_title.set(event_target_value(&ev))/>
-                <textarea placeholder=move || if lang.get() == Lang::De { "Beschreibung hinzufügen..." } else { "Add description..." } prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
+                <label class="modal-field title-field">
+                    <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
+                    <input class="title-input" placeholder=move || if lang.get() == Lang::De { "Woran wird gearbeitet?" } else { "What are we working on?" } prop:value=title on:input=move |ev| {
+                        set_title.set(event_target_value(&ev));
+                        set_local_error.set(None);
+                    }/>
+                </label>
+                {move || local_error.get().map(|err| view! {
+                    <div class="modal-error">{err}</div>
+                })}
+                <label class="modal-field">
+                    <span>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</span>
+                    <textarea placeholder=move || if lang.get() == Lang::De { "Beschreibung hinzufügen..." } else { "Add description..." } prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
+                </label>
                 <div class="modal-meta">
                     <select on:change=move |ev| set_assignee_id.set(select_value(&ev))>
                         {boot.members.clone().into_iter().map(|m| view! { <option value=m.user_id>{m.name}</option> }).collect_view()}
