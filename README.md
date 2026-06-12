@@ -87,6 +87,28 @@ Before enabling it:
 - In production also set `KOWOBAU_PUBLIC_ORIGIN=https://kowobau.example.com` so
   state-changing requests must carry exactly this Origin (CSRF hardening).
 
+## Internal vSphere reverse proxy
+
+Use `deploy/nginx/internal-vsphere-http2.conf` when the app should run only on an
+internal LAN address such as `192.168.1.x`.
+
+It binds Nginx to the VM LAN IP, allows only `192.168.1.0/24`, enables HTTPS with
+HTTP/2, and proxies to the Docker Nginx published on `127.0.0.1:8080`.
+
+For this setup, start Compose with:
+
+```powershell
+$env:KOWOBAU_HTTP_PORT="8080"
+docker compose up -d --build
+```
+
+Set these production-style values in `.env`:
+
+```env
+KOWOBAU_COOKIE_SECURE=true
+KOWOBAU_PUBLIC_ORIGIN=https://kowobau.lan
+```
+
 ## Security notes
 
 - Login and register are rate limited per IP (10/min) both in nginx and in the
