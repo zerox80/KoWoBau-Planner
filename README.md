@@ -115,7 +115,7 @@ Set these production-style values in `.env`:
 
 ```env
 KOWOBAU_COOKIE_SECURE=true
-KOWOBAU_PUBLIC_ORIGIN=https://kowobau.lan
+KOWOBAU_PUBLIC_ORIGIN=https://planner.example.test
 ```
 
 ## Security notes
