@@ -1731,11 +1731,15 @@ fn task_detail(
                     view! { <b>{status_label.clone()}</b> }.into_view()
                 }}
                 <span class="drawer-actions">
-                    <button class="link-button" on:click=move |_| set_editing.update(|v| *v = !*v)>
-                        {move || if editing.get() {
-                            if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }
-                        } else if lang.get() == Lang::De { "Bearbeiten" } else { "Edit" }}
-                    </button>
+                    {move || if editing.get() {
+                        view! { <span/> }.into_view()
+                    } else {
+                        view! {
+                            <button class="link-button" on:click=move |_| set_editing.set(true)>
+                                {move || if lang.get() == Lang::De { "Bearbeiten" } else { "Edit" }}
+                            </button>
+                        }.into_view()
+                    }}
                     <button class="danger-link" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
                     <button class="drawer-close" on:click=move |_| set_open_task.set(None)>"x"</button>
                 </span>
@@ -1803,21 +1807,6 @@ fn task_detail(
                     </div>
                 }.into_view()
             }}
-            <section class="drawer-edit-actions" style=move || if editing.get() { "".to_string() } else { "display:none".to_string() }>
-                {move || local_error.get().map(|err| view! { <div class="modal-error inline">{err}</div> })}
-                <button class="btn ghost" on:click=move |_| {
-                    set_title_edit.set(reset_title.clone());
-                    set_description_edit.set(reset_description.clone());
-                    set_status_edit.set(reset_status.clone());
-                    set_priority_edit.set(reset_priority.clone());
-                    set_due_date_edit.set(reset_due.clone());
-                    set_phase_edit.set(reset_phase.clone());
-                    set_assignee_edit.set(reset_assignee.clone());
-                    set_local_error.set(None);
-                    set_editing.set(false);
-                }>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
-                <button class="btn primary" disabled=move || busy.get() on:click=save>{move || if lang.get() == Lang::De { "Speichern" } else { "Save" }}</button>
-            </section>
             <section>
                 <h3>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</h3>
                 {move || if editing.get() {
@@ -1866,6 +1855,21 @@ fn task_detail(
                         }
                     }>"Enter"</button>
                 </div>
+            </section>
+            <section class="drawer-edit-actions" style=move || if editing.get() { "".to_string() } else { "display:none".to_string() }>
+                {move || local_error.get().map(|err| view! { <div class="modal-error inline">{err}</div> })}
+                <button class="btn ghost" on:click=move |_| {
+                    set_title_edit.set(reset_title.clone());
+                    set_description_edit.set(reset_description.clone());
+                    set_status_edit.set(reset_status.clone());
+                    set_priority_edit.set(reset_priority.clone());
+                    set_due_date_edit.set(reset_due.clone());
+                    set_phase_edit.set(reset_phase.clone());
+                    set_assignee_edit.set(reset_assignee.clone());
+                    set_local_error.set(None);
+                    set_editing.set(false);
+                }>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
+                <button class="btn primary" disabled=move || busy.get() on:click=save>{move || if lang.get() == Lang::De { "Speichern" } else { "Save" }}</button>
             </section>
         </aside>
     }.into_view()
