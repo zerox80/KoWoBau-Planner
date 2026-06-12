@@ -1531,7 +1531,8 @@ async fn store_attachments(
         .execute(&mut *tx)
         .await?;
     let (used_bytes,): (i64,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(a.size_bytes), 0) \
+        // SUM(bigint) yields NUMERIC in Postgres; cast back so it decodes as i64.
+        "SELECT COALESCE(SUM(a.size_bytes), 0)::BIGINT \
          FROM attachments a \
          JOIN tasks t ON t.id = a.task_id \
          JOIN projects p ON p.id = t.project_id \
