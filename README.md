@@ -89,11 +89,20 @@ Before enabling it:
 
 ## Internal vSphere reverse proxy
 
-Use `deploy/nginx/internal-vsphere-http2.conf` when the app should run only on an
+Use `deploy/nginx/internal-vsphere-http3.conf` when the app should run only on an
 internal LAN address such as `192.168.1.x`.
 
 It binds Nginx to the VM LAN IP, allows only `192.168.1.0/24`, enables HTTPS with
-HTTP/2, and proxies to the Docker Nginx published on `127.0.0.1:8080`.
+HTTP/3 over QUIC on UDP 443, keeps HTTP/2 as TCP fallback, and proxies to the
+Docker Nginx published on `127.0.0.1:8080`.
+
+Verify that the host Nginx supports HTTP/3:
+
+```bash
+nginx -V 2>&1 | grep -o -- '--with-http_v3_module'
+```
+
+Open TCP `80`, TCP `443`, and UDP `443` from the internal LAN.
 
 For this setup, start Compose with:
 
