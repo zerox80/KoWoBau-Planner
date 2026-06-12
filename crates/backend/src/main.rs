@@ -395,30 +395,32 @@ async fn enforce_same_origin(
     req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    if !matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
-        if let Some(origin) = req.headers().get(ORIGIN).and_then(|v| v.to_str().ok()) {
-            if let Some(expected) = &state.cfg.public_origin {
-                if !origin.eq_ignore_ascii_case(expected) {
-                    return Err(AppError::Forbidden);
-                }
-            } else {
-                let origin_host = host_only(origin.split_once("://").map_or(origin, |(_, a)| a));
-                let request_host = req
-                    .headers()
-                    .get(HOST)
-                    .and_then(|v| v.to_str().ok())
-                    .map(host_only)
-                    .unwrap_or("");
-                if origin == "null"
-                    || request_host.is_empty()
-                    || !origin_host.eq_ignore_ascii_case(request_host)
-                {
-                    return Err(AppError::Forbidden);
-                }
-            }
-        }
+    if !matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS)
+        && !same_origin(&state.cfg, req.headers())
+    {
+        return Err(AppError::Forbidden);
     }
     Ok(next.run(req).await)
+}
+
+/// True when the request's Origin header (if present) matches our own origin.
+/// Requests without an Origin header (curl, server-to-server) pass. With
+/// KOWOBAU_PUBLIC_ORIGIN set, the full origin (including scheme) must match
+/// exactly; otherwise the Origin host is compared against the Host header.
+fn same_origin(cfg: &AppConfig, headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(ORIGIN).and_then(|v| v.to_str().ok()) else {
+        return true;
+    };
+    if let Some(expected) = &cfg.public_origin {
+        return origin.eq_ignore_ascii_case(expected);
+    }
+    let origin_host = host_only(origin.split_once("://").map_or(origin, |(_, a)| a));
+    let request_host = headers
+        .get(HOST)
+        .and_then(|v| v.to_str().ok())
+        .map(host_only)
+        .unwrap_or("");
+    origin != "null" && !request_host.is_empty() && origin_host.eq_ignore_ascii_case(request_host)
 }
 
 /// Fixed-window per-IP limiter for the unauthenticated auth endpoints. These
@@ -1448,6 +1450,11 @@ async fn create_comment(
         if target == user_id || mentioned.contains(&target) {
             continue;
         }
+        // Old assignees/commenters may have left the workspace since;
+        // `members` holds the active memberships.
+        if !members.iter().any(|(id, _)| *id == target) {
+            continue;
+        }
         insert_notification(
             &mut *tx,
             workspace_id,
@@ -1674,13 +1681,17 @@ async fn download_attachment(
             .map_err(|_| AppError::NotFound)?,
     );
     if inline {
-        // Allow same-origin framing (PDF preview iframe) but sandbox the
-        // served document; security_headers leaves these handler-set values alone.
+        // Allow same-origin framing (PDF preview iframe) but lock the served
+        // document down; security_headers leaves these handler-set values
+        // alone. No `sandbox` directive: Chromium disables its built-in PDF
+        // viewer inside CSP-sandboxed documents, which would blank the
+        // preview. The whitelist is raster images + PDF, so default-src
+        // 'none' already forbids script/embeds.
         res.headers_mut()
             .insert(X_FRAME_OPTIONS, HeaderValue::from_static("SAMEORIGIN"));
         res.headers_mut().insert(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("default-src 'none'; sandbox; frame-ancestors 'self'"),
+            HeaderValue::from_static("default-src 'none'; frame-ancestors 'self'"),
         );
     }
     res.headers_mut()
@@ -1758,6 +1769,12 @@ async fn ws_handler(
     Query(query): Query<WsQuery>,
     ws: WebSocketUpgrade,
 ) -> Result<Response, AppError> {
+    // The handshake is a GET, so enforce_same_origin skips it — but browsers
+    // do not apply CORS to WebSockets, so a foreign page could otherwise open
+    // a cookie-authenticated socket (cross-site WebSocket hijacking).
+    if !same_origin(&state.cfg, &headers) {
+        return Err(AppError::Forbidden);
+    }
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     // Same scoping rule as fetch_bootstrap: the first active membership
@@ -4631,6 +4648,66 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(COOKIE, HeaderValue::from_str(pair).expect("valid header"));
         headers
+    }
+
+    fn origin_headers(origin: Option<&str>, host: Option<&str>) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        if let Some(origin) = origin {
+            headers.insert(ORIGIN, HeaderValue::from_str(origin).expect("valid header"));
+        }
+        if let Some(host) = host {
+            headers.insert(HOST, HeaderValue::from_str(host).expect("valid header"));
+        }
+        headers
+    }
+
+    #[test]
+    fn same_origin_compares_against_host_header() {
+        let cfg = test_config();
+        // No Origin header (curl, server-to-server): allowed.
+        assert!(same_origin(&cfg, &origin_headers(None, Some("example.com"))));
+        assert!(same_origin(
+            &cfg,
+            &origin_headers(Some("https://example.com"), Some("example.com"))
+        ));
+        assert!(same_origin(
+            &cfg,
+            &origin_headers(Some("https://example.com:8443"), Some("example.com:443"))
+        ));
+        assert!(!same_origin(
+            &cfg,
+            &origin_headers(Some("https://evil.test"), Some("example.com"))
+        ));
+        assert!(!same_origin(
+            &cfg,
+            &origin_headers(Some("null"), Some("example.com"))
+        ));
+        assert!(!same_origin(
+            &cfg,
+            &origin_headers(Some("https://example.com"), None)
+        ));
+    }
+
+    #[test]
+    fn same_origin_requires_exact_public_origin() {
+        let mut cfg = test_config();
+        cfg.public_origin = Some("https://kowobau.example".into());
+        assert!(same_origin(
+            &cfg,
+            &origin_headers(Some("https://kowobau.example"), Some("other-host"))
+        ));
+        assert!(same_origin(
+            &cfg,
+            &origin_headers(Some("HTTPS://KOWOBAU.EXAMPLE"), None)
+        ));
+        assert!(!same_origin(
+            &cfg,
+            &origin_headers(Some("http://kowobau.example"), Some("kowobau.example"))
+        ));
+        assert!(!same_origin(
+            &cfg,
+            &origin_headers(Some("https://evil.test"), Some("kowobau.example"))
+        ));
     }
 
     #[test]

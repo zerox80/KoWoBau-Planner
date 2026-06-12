@@ -1984,18 +1984,25 @@ fn task_detail(
                             set_comment.set(value);
                         }
                         on:keydown=move |ev| {
-                            if mention_open.get_untracked() {
-                                let candidates = mention_candidates();
+                            // The popup only counts as active while it has
+                            // candidates; a query without matches must not
+                            // swallow Enter (the user wants to submit).
+                            let candidates = if mention_open.get_untracked() {
+                                mention_candidates()
+                            } else {
+                                Vec::new()
+                            };
+                            if !candidates.is_empty() {
                                 match ev.key().as_str() {
-                                    "ArrowDown" if !candidates.is_empty() => {
+                                    "ArrowDown" => {
                                         ev.prevent_default();
                                         set_mention_index.update(|i| *i = (*i + 1) % candidates.len());
                                     }
-                                    "ArrowUp" if !candidates.is_empty() => {
+                                    "ArrowUp" => {
                                         ev.prevent_default();
                                         set_mention_index.update(|i| *i = (*i + candidates.len() - 1) % candidates.len());
                                     }
-                                    "Enter" | "Tab" if !candidates.is_empty() => {
+                                    "Enter" | "Tab" => {
                                         ev.prevent_default();
                                         let index = mention_index.get_untracked().min(candidates.len() - 1);
                                         pick_mention(candidates[index].name.clone());
