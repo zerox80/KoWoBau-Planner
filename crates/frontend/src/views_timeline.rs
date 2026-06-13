@@ -6,25 +6,145 @@ pub(crate) fn calendar_view(
     set_open_task: WriteSignal<Option<String>>,
 ) -> View {
     let all_tasks = boot.tasks;
+    let all_milestones = boot.milestones;
+    let statuses = boot.statuses;
     let (year, month, today_day) = now_date();
+    let first_day_offset = calendar_month_offset(year, month);
+    let weekday_labels = calendar_weekday_labels(lang.get());
     view! {
-        <div class="calendar-grid">
+        <div class="calendar-panel">
+            <div class="calendar-weekdays">
+                {weekday_labels.into_iter().map(|label| view! { <span>{label}</span> }).collect_view()}
+            </div>
+            <div class="calendar-grid">
+                {(0..first_day_offset).map(|_| view! { <span class="day-cell calendar-empty" aria-hidden="true"></span> }).collect_view()}
             {(1..=days_in_month(year, month)).map(|day| {
                 let iso = format!("{year:04}-{month:02}-{day:02}");
-                let tasks = all_tasks.iter().filter(|t| t.due_date.as_deref() == Some(iso.as_str())).cloned();
+                let day_number = days_from_civil(year, month, day);
+                let items = calendar_items_for_day(&iso, &all_tasks, &all_milestones);
+                let hidden_count = items.len().saturating_sub(CALENDAR_VISIBLE_ITEMS);
                 view! {
-                    <div class="day-cell" class:today=move || day == today_day>
-                        <strong>{day}</strong>
-                        {tasks.take(3).map(|task| {
-                            let task_id = task.id.clone();
-                            let label = task_title(&task, lang.get());
-                            view! { <button class="cal-chip" on:click=move |_| set_open_task.set(Some(task_id.clone()))>{label}</button> }
-                        }).collect_view()}
+                    <div class="day-cell" class:today=move || day == today_day class:weekend=move || calendar_is_weekend(day_number)>
+                        <header class="day-cell-head">
+                            <strong>{day}</strong>
+                            {if day == today_day {
+                                view! { <small>{move || if lang.get() == Lang::De { "Heute" } else { "Today" }}</small> }.into_view()
+                            } else {
+                                ().into_view()
+                            }}
+                        </header>
+                        <div class="calendar-items">
+                            {items.into_iter().take(CALENDAR_VISIBLE_ITEMS).map(|item| {
+                                match item {
+                                    CalendarItem::Task(task) => {
+                                        let task_id = task.id.clone();
+                                        let label = task_title(&task, lang.get());
+                                        let color = status_color(&statuses, &task.status_id);
+                                        let class_name = if task.status_is_done { "cal-chip done" } else { "cal-chip" };
+                                        view! {
+                                            <button class=class_name style=format!("--cal-color:{color}") title=label.clone() on:click=move |_| set_open_task.set(Some(task_id.clone()))>
+                                                <span>{label}</span>
+                                            </button>
+                                        }.into_view()
+                                    }
+                                    CalendarItem::Milestone(milestone) => {
+                                        let label = title_for(milestone.title, milestone.title_en, lang.get());
+                                        let class_name = if milestone.done { "cal-chip milestone done" } else { "cal-chip milestone" };
+                                        view! {
+                                            <span class=class_name title=label.clone()>
+                                                <b>"\u{25C7}"</b>
+                                                <span>{label}</span>
+                                            </span>
+                                        }.into_view()
+                                    }
+                                }
+                            }).collect_view()}
+                            {if hidden_count > 0 {
+                                view! {
+                                    <span class="cal-more">
+                                        "+"
+                                        {hidden_count}
+                                        " "
+                                        {move || if lang.get() == Lang::De { "weitere" } else { "more" }}
+                                    </span>
+                                }.into_view()
+                            } else {
+                                ().into_view()
+                            }}
+                        </div>
                     </div>
                 }
             }).collect_view()}
+            </div>
         </div>
     }.into_view()
+}
+
+const CALENDAR_VISIBLE_ITEMS: usize = 4;
+
+#[derive(Debug, Clone)]
+enum CalendarItem {
+    Task(TaskDto),
+    Milestone(MilestoneDto),
+}
+
+fn calendar_items_for_day(
+    iso: &str,
+    tasks: &[TaskDto],
+    milestones: &[MilestoneDto],
+) -> Vec<CalendarItem> {
+    let mut items = Vec::new();
+    items.extend(
+        tasks
+            .iter()
+            .filter(|task| task.due_date.as_deref() == Some(iso))
+            .cloned()
+            .map(CalendarItem::Task),
+    );
+    items.extend(
+        milestones
+            .iter()
+            .filter(|milestone| milestone.due_date == iso)
+            .cloned()
+            .map(CalendarItem::Milestone),
+    );
+    items.sort_by(|a, b| calendar_item_sort_key(a).cmp(&calendar_item_sort_key(b)));
+    items
+}
+
+fn calendar_item_sort_key(item: &CalendarItem) -> (u8, bool, String) {
+    match item {
+        CalendarItem::Milestone(milestone) => (
+            0,
+            milestone.done,
+            title_for(
+                milestone.title.clone(),
+                milestone.title_en.clone(),
+                Lang::De,
+            ),
+        ),
+        CalendarItem::Task(task) => (1, task.status_is_done, task.key.clone()),
+    }
+}
+
+pub(crate) fn calendar_month_offset(year: i32, month: u32) -> usize {
+    calendar_weekday_index(days_from_civil(year, month, 1))
+}
+
+pub(crate) fn calendar_weekday_index(day: i64) -> usize {
+    (day + 3).rem_euclid(7) as usize
+}
+
+pub(crate) fn calendar_is_weekend(day: i64) -> bool {
+    calendar_weekday_index(day) >= 5
+}
+
+fn calendar_weekday_labels(lang: Lang) -> [&'static str; 7] {
+    if lang == Lang::De {
+        ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+    } else {
+        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    }
 }
 pub(crate) fn gantt_view(
     boot: BootstrapDto,

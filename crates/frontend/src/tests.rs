@@ -25,6 +25,22 @@ fn month_lengths() {
 }
 
 #[test]
+fn calendar_months_align_to_monday_first_grid() {
+    assert_eq!(calendar_month_offset(2026, 6), 0);
+    assert_eq!(calendar_month_offset(2026, 7), 2);
+    assert_eq!(calendar_weekday_index(days_from_civil(2026, 6, 1)), 0);
+    assert_eq!(calendar_weekday_index(days_from_civil(2026, 6, 7)), 6);
+}
+
+#[test]
+fn calendar_weekends_are_saturday_and_sunday() {
+    assert!(!calendar_is_weekend(days_from_civil(2026, 6, 5)));
+    assert!(calendar_is_weekend(days_from_civil(2026, 6, 6)));
+    assert!(calendar_is_weekend(days_from_civil(2026, 6, 7)));
+    assert!(!calendar_is_weekend(days_from_civil(2026, 6, 8)));
+}
+
+#[test]
 fn dates_format_with_real_month_names() {
     assert_eq!(fmt_date("2026-03-05", Lang::De), "5. Mär");
     assert_eq!(fmt_date("2026-03-05", Lang::En), "Mar 5");
