@@ -101,7 +101,8 @@ p { margin: 0; }
 .side-label { color: var(--ink-3); font: 700 11px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; padding: 14px 12px 4px; }
 .side-item { display: flex; align-items: center; gap: 11px; border-radius: 9px; padding: 10px 12px; color: var(--ink-2); font-weight: 700; text-align: left; }
 .side-item.active { color: var(--ink); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
-.side-icon { color: var(--accent); width: 18px; }
+.side-icon { color: var(--accent); width: 18px; height: 18px; display: inline-grid; place-items: center; flex: none; }
+.app-icon { width: 18px; height: 18px; display: block; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .side-item small { margin-left: auto; font: 700 11px var(--font-mono); color: var(--ink-3); }
 .user-card { margin-top: auto; }
 .user-card button { margin-left: auto; color: var(--ink-3); }
@@ -129,6 +130,7 @@ p { margin: 0; }
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
 .stat-card { background: var(--surface); border-radius: 12px; padding: 16px 18px; box-shadow: 0 0 0 1px var(--line); }
 .stat-card span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: var(--accent-soft); color: var(--accent); }
+.stat-card span .app-icon { width: 19px; height: 19px; stroke-width: 2; }
 .stat-card.cool span { background: #dfeaf2; color: var(--cool); }
 .stat-card.good span { background: #deecdf; color: var(--good); }
 .stat-card.warm span { background: #f4e5cc; color: var(--warm); }

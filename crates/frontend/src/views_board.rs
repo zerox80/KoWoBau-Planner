@@ -50,10 +50,10 @@ pub(crate) fn overview_view(
     view! {
         <div class="overview-grid">
             <div class="stats-row">
-                {stat("□", open, if lang.get() == Lang::De { "Offene Aufgaben" } else { "Open tasks" }, "cool")}
-                {stat("◷", today, if lang.get() == Lang::De { "Heute fällig" } else { "Due today" }, "accent")}
-                {stat("⚑", overdue, if lang.get() == Lang::De { "Überfällig" } else { "Overdue" }, "warm")}
-                {stat("✓", done, if lang.get() == Lang::De { "Diese Woche fertig" } else { "Done this week" }, "good")}
+                {stat(AppIcon::Kanban, open, if lang.get() == Lang::De { "Offene Aufgaben" } else { "Open tasks" }, "cool")}
+                {stat(AppIcon::Clock, today, if lang.get() == Lang::De { "Heute fällig" } else { "Due today" }, "accent")}
+                {stat(AppIcon::Flag, overdue, if lang.get() == Lang::De { "Überfällig" } else { "Overdue" }, "warm")}
+                {stat(AppIcon::CheckCircle, done, if lang.get() == Lang::De { "Diese Woche fertig" } else { "Done this week" }, "good")}
             </div>
             <div class="two-col">
                 <div class="panel">
@@ -221,10 +221,10 @@ pub(crate) fn ticket_view(
     view! {
         <div class="ticket-grid">
             <div class="stats-row">
-                {stat("T", boot.tickets.len(), if lang.get() == Lang::De { "Tickets gesamt" } else { "Total tickets" }, "cool")}
-                {stat("!", open, if lang.get() == Lang::De { "Offen" } else { "Open" }, "accent")}
-                {stat(">", active, if lang.get() == Lang::De { "In Arbeit" } else { "In progress" }, "warm")}
-                {stat("✓", done, if lang.get() == Lang::De { "Erledigt" } else { "Done" }, "good")}
+                {stat(AppIcon::Ticket, boot.tickets.len(), if lang.get() == Lang::De { "Tickets gesamt" } else { "Total tickets" }, "cool")}
+                {stat(AppIcon::Alert, open, if lang.get() == Lang::De { "Offen" } else { "Open" }, "accent")}
+                {stat(AppIcon::Timeline, active, if lang.get() == Lang::De { "In Arbeit" } else { "In progress" }, "warm")}
+                {stat(AppIcon::CheckCircle, done, if lang.get() == Lang::De { "Erledigt" } else { "Done" }, "good")}
             </div>
             <div class="table-panel">
                 <div class="ticket-head">
