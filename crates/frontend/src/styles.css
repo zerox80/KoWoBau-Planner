@@ -253,7 +253,7 @@ p { margin: 0; }
 .gantt-bar.compact { justify-content: center; padding: 0 6px; }
 .gantt-bar.compact b { width: 0; height: 0; opacity: 0; }
 .gantt-bar.compact small { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 10px var(--font-mono); }
-.gantt-today { position: absolute; top: 0; bottom: 0; z-index: 2; width: 2px; transform: translateX(-1px); border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 2px rgba(232,97,58,.14); pointer-events: none; }
+.gantt-today { position: absolute; top: 0; bottom: 0; z-index: 7; width: 2px; transform: translateX(-1px); border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 2px rgba(232,97,58,.14); pointer-events: none; }
 .roadmap-grid, .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .road-card, .member-card { background: var(--surface); border-radius: 14px; box-shadow: 0 0 0 1px var(--line); padding: 16px; }
 .road-card header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
