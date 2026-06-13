@@ -135,7 +135,12 @@ pub(crate) fn gantt_view(
                             let left = ((scheduled.day - min_day).max(0) as usize * GANTT_DAY_WIDTH) + (GANTT_DAY_WIDTH / 2);
                             let title = title_for(scheduled.milestone.title, scheduled.milestone.title_en, lang.get());
                             let date = fmt_date(&scheduled.milestone.due_date, lang.get());
-                            let class_name = if scheduled.milestone.done { "gantt-milestone done" } else { "gantt-milestone" };
+                            let class_name = match (scheduled.milestone.done, scheduled.day + 2 >= max_day) {
+                                (true, true) => "gantt-milestone done edge",
+                                (true, false) => "gantt-milestone done",
+                                (false, true) => "gantt-milestone edge",
+                                (false, false) => "gantt-milestone",
+                            };
                             view! {
                                 <span class=class_name style=format!("left:{left}px") title=format!("{title} - {date}")>
                                     <i></i>

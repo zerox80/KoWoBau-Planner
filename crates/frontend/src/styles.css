@@ -222,13 +222,16 @@ p { margin: 0; }
 .gantt-scale span { min-width: 0; height: 100%; display: grid; place-items: center; text-align: center; border-left: 1px solid var(--line); }
 .gantt-scale span:first-child, .gantt-months > span { position: sticky; left: 18px; z-index: 7; justify-content: start; border-left: 0; background: var(--surface); text-align: left; }
 .gantt-scale .weekend { background: var(--surface-2); color: var(--ink-2); }
-.gantt-milestones { min-height: 54px; border-bottom: 1px solid var(--line); color: var(--ink-3); font: 700 11px var(--font-mono); }
+.gantt-milestones { min-height: 62px; border-bottom: 1px solid var(--line); color: var(--ink-3); font: 700 11px var(--font-mono); }
 .gantt-lane-label { position: sticky; left: 18px; z-index: 5; height: 100%; display: flex; align-items: center; min-width: 0; padding-right: 14px; background: var(--surface); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gantt-track { position: relative; height: 100%; min-height: 42px; background-image: linear-gradient(to right, rgba(231,226,216,.92) 1px, transparent 1px), linear-gradient(to bottom, transparent calc(100% - 1px), var(--line) calc(100% - 1px)); background-size: 50px 100%, 100% 100%; }
-.gantt-milestone { position: absolute; top: 9px; transform: translateX(-8px); display: grid; grid-template-columns: 14px minmax(0, 1fr); column-gap: 7px; row-gap: 1px; max-width: 190px; color: var(--ink-2); }
+.gantt-milestone { position: absolute; top: 10px; transform: translateX(-8px); display: grid; grid-template-columns: 14px minmax(0, 1fr); column-gap: 7px; row-gap: 1px; width: max-content; max-width: 190px; color: var(--ink-2); }
+.gantt-milestone.edge { transform: translateX(calc(-100% + 8px)); grid-template-columns: minmax(0, 1fr) 14px; text-align: right; }
 .gantt-milestone i { grid-row: 1 / span 2; align-self: center; width: 13px; height: 13px; flex: none; transform: rotate(45deg); border-radius: 3px; background: var(--accent); box-shadow: 0 0 0 3px var(--surface); }
+.gantt-milestone.edge i { grid-column: 2; }
 .gantt-milestone.done i { background: var(--good); }
 .gantt-milestone b, .gantt-milestone small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-milestone.edge b, .gantt-milestone.edge small { grid-column: 1; }
 .gantt-milestone b { font: 800 12px var(--font-body); color: var(--ink); }
 .gantt-milestone small { font: 700 10px var(--font-mono); color: var(--ink-3); }
 .gantt-row { height: 58px; text-align: left; border-bottom: 1px solid var(--line); }
