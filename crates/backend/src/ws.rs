@@ -30,9 +30,7 @@ pub(crate) async fn read_all_notifications(
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::Forbidden)?;
-    sqlx::query(
-        "UPDATE notifications SET unread = false WHERE user_id = $1 AND workspace_id = $2",
-    )
+    sqlx::query("UPDATE notifications SET unread = false WHERE user_id = $1 AND workspace_id = $2")
         .bind(user_id)
         .bind(workspace_id)
         .execute(&state.db)
