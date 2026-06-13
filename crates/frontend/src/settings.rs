@@ -7,27 +7,30 @@ pub(crate) fn settings_view(lang: ReadSignal<Lang>) -> View {
     let (theme, set_theme) = use_context::<(ReadSignal<Theme>, WriteSignal<Theme>)>()
         .expect("theme context provided by AppRoot");
 
-    let cards = Theme::ALL.into_iter().map(move |option| {
-        let swatches = option.swatches();
-        view! {
-            <button
-                class="theme-card"
-                class:active=move || theme.get() == option
-                on:click=move |_| set_theme.set(option)
-            >
-                <span class="theme-swatches">
-                    {swatches.into_iter().map(|c| view! {
-                        <i class="theme-swatch" style=format!("background:{c}")></i>
-                    }).collect_view()}
-                </span>
-                <strong>{move || option.label(lang.get())}</strong>
-                <small>{move || option.description(lang.get())}</small>
-                <span class="theme-check">{move || if theme.get() == option {
-                    if lang.get() == Lang::De { "Aktiv" } else { "Active" }
-                } else if lang.get() == Lang::De { "Auswählen" } else { "Select" }}</span>
-            </button>
-        }
-    }).collect_view();
+    let cards = Theme::ALL
+        .into_iter()
+        .map(move |option| {
+            let swatches = option.swatches();
+            view! {
+                <button
+                    class="theme-card"
+                    class:active=move || theme.get() == option
+                    on:click=move |_| set_theme.set(option)
+                >
+                    <span class="theme-swatches">
+                        {swatches.into_iter().map(|c| view! {
+                            <i class="theme-swatch" style=format!("background:{c}")></i>
+                        }).collect_view()}
+                    </span>
+                    <strong>{move || option.label(lang.get())}</strong>
+                    <small>{move || option.description(lang.get())}</small>
+                    <span class="theme-check">{move || if theme.get() == option {
+                        if lang.get() == Lang::De { "Aktiv" } else { "Active" }
+                    } else if lang.get() == Lang::De { "Auswählen" } else { "Select" }}</span>
+                </button>
+            }
+        })
+        .collect_view();
 
     view! {
         <div class="settings-space">

@@ -37,10 +37,18 @@ impl Theme {
 
     pub(crate) fn description(self, lang: Lang) -> &'static str {
         match (self, lang) {
-            (Self::Standard, Lang::De) => "Das Original-Design von KoWoBau-Planner (warmes Beige, Orange).",
-            (Self::Standard, Lang::En) => "The original KoWoBau-Planner design (warm beige, orange).",
-            (Self::Pishi, Lang::De) => "Helles PISHI-Design (kühles Grau, Blau) – abgestimmt mit dem Team.",
-            (Self::Pishi, Lang::En) => "Light PISHI design (cool grey, blue) – aligned with the team.",
+            (Self::Standard, Lang::De) => {
+                "Das Original-Design von KoWoBau-Planner (warmes Beige, Orange)."
+            }
+            (Self::Standard, Lang::En) => {
+                "The original KoWoBau-Planner design (warm beige, orange)."
+            }
+            (Self::Pishi, Lang::De) => {
+                "Helles PISHI-Design (kühles Grau, Blau) – abgestimmt mit dem Team."
+            }
+            (Self::Pishi, Lang::En) => {
+                "Light PISHI design (cool grey, blue) – aligned with the team."
+            }
         }
     }
 

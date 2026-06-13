@@ -186,11 +186,11 @@ mod cards;
 mod i18n;
 mod modals;
 mod realtime;
+mod settings;
 mod shell;
 mod task_detail;
 #[cfg(test)]
 mod tests;
-mod settings;
 mod theme;
 mod ticket_detail;
 mod views_board;
