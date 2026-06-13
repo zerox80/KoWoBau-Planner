@@ -141,7 +141,7 @@ pub(crate) fn read_all_notifications(
         }
     });
     spawn_local(async move {
-        if let Err(err) = api_empty("/api/notifications/read-all").await {
+        if let Err(err) = api_empty(&read_all_notifications_url()).await {
             set_error.set(Some(err.message));
         }
     });

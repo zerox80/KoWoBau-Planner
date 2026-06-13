@@ -45,6 +45,13 @@ pub(crate) fn bootstrap_url() -> String {
     )
 }
 
+pub(crate) fn read_all_notifications_url() -> String {
+    selected_workspace_id_from_url().map_or_else(
+        || "/api/notifications/read-all".to_string(),
+        |id| format!("/api/notifications/read-all?workspace_id={id}"),
+    )
+}
+
 pub(crate) fn switch_workspace(workspace_id: &str) {
     if workspace_id.trim().is_empty() {
         return;
