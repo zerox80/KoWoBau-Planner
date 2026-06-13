@@ -32,6 +32,39 @@ pub(crate) async fn assert_project_edit(
     Ok(workspace_id)
 }
 
+pub(crate) async fn milestone_access(
+    db: &PgPool,
+    user_id: Uuid,
+    milestone_id: Uuid,
+) -> Result<(Uuid, Role), AppError> {
+    let row: Option<(Uuid, String)> = sqlx::query_as(
+        "SELECT p.workspace_id, m.role \
+         FROM milestones ms JOIN projects p ON p.id = ms.project_id \
+         JOIN memberships m ON m.workspace_id = p.workspace_id \
+         WHERE ms.id = $1 AND m.user_id = $2 AND m.status = 'active'",
+    )
+    .bind(milestone_id)
+    .bind(user_id)
+    .fetch_optional(db)
+    .await?;
+    let Some((workspace_id, role)) = row else {
+        return Err(AppError::Forbidden);
+    };
+    Ok((workspace_id, role_from_db(&role)?))
+}
+
+pub(crate) async fn assert_milestone_edit(
+    db: &PgPool,
+    user_id: Uuid,
+    milestone_id: Uuid,
+) -> Result<Uuid, AppError> {
+    let (workspace_id, role) = milestone_access(db, user_id, milestone_id).await?;
+    if !role.can_edit() {
+        return Err(AppError::Forbidden);
+    }
+    Ok(workspace_id)
+}
+
 pub(crate) async fn task_access(
     db: &PgPool,
     user_id: Uuid,

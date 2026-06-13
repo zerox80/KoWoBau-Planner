@@ -26,7 +26,7 @@ pub(crate) use axum::{
     },
     middleware::Next,
     response::{IntoResponse, Response},
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Json, Router,
 };
 pub(crate) use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};

@@ -44,6 +44,7 @@ pub(crate) fn overview_view(
     let statuses_for_legend = boot.statuses.clone();
     let tasks_for_legend = boot.tasks.clone();
     let milestones = boot.milestones.clone();
+    let can_edit_milestones = boot.current_role.can_edit();
     let boot_for_milestone_create = boot.clone();
 
     view! {
@@ -93,7 +94,22 @@ pub(crate) fn overview_view(
                         }.into_view()
                     } else {
                         milestones.iter().map(|m| view! {
-                            <div class="milestone-row"><span>"◇"</span><strong>{title_for(m.title.clone(), m.title_en.clone(), lang.get())}</strong><small>{fmt_date(m.due_date.as_str(), lang.get())}</small></div>
+                            <div class="milestone-row">
+                                <span>"◇"</span>
+                                <strong>{title_for(m.title.clone(), m.title_en.clone(), lang.get())}</strong>
+                                <small>{fmt_date(m.due_date.as_str(), lang.get())}</small>
+                                {if can_edit_milestones {
+                                    let milestone_id = m.id.clone();
+                                    let milestone_title = title_for(m.title.clone(), m.title_en.clone(), lang.get());
+                                    view! {
+                                        <button class="danger-icon" title=move || if lang.get() == Lang::De { "Meilenstein loeschen" } else { "Delete milestone" } on:click=move |_| {
+                                            delete_milestone(milestone_id.clone(), milestone_title.clone(), lang, set_data, set_error);
+                                        }>"x"</button>
+                                    }.into_view()
+                                } else {
+                                    view! { <span/> }.into_view()
+                                }}
+                            </div>
                         }).collect_view().into_view()
                     }}
                 </div>

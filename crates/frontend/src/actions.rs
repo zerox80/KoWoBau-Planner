@@ -268,3 +268,41 @@ pub(crate) fn remove_ticket(set_data: WriteSignal<Option<BootstrapDto>>, ticket_
         }
     });
 }
+
+pub(crate) fn delete_milestone(
+    milestone_id: String,
+    milestone_title: String,
+    lang: ReadSignal<Lang>,
+    set_data: WriteSignal<Option<BootstrapDto>>,
+    set_error: WriteSignal<Option<String>>,
+) {
+    let confirm_text = if lang.get_untracked() == Lang::De {
+        format!("{milestone_title} wirklich loeschen?")
+    } else {
+        format!("Delete {milestone_title}?")
+    };
+    let confirmed = web_sys::window()
+        .and_then(|w| w.confirm_with_message(&confirm_text).ok())
+        .unwrap_or(false);
+    if !confirmed {
+        return;
+    }
+    spawn_local(async move {
+        match api_delete_empty(&format!("/api/milestones/{milestone_id}")).await {
+            Ok(()) => {
+                remove_milestone(set_data, &milestone_id);
+                set_error.set(None);
+            }
+            Err(err) => set_error.set(Some(err.message)),
+        }
+    });
+}
+
+pub(crate) fn remove_milestone(set_data: WriteSignal<Option<BootstrapDto>>, milestone_id: &str) {
+    set_data.update(|data| {
+        if let Some(data) = data {
+            data.milestones
+                .retain(|milestone| milestone.id != milestone_id);
+        }
+    });
+}

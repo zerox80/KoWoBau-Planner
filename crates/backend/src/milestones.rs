@@ -63,6 +63,34 @@ pub(crate) async fn create_milestone(
     Ok(Json(fetch_milestone(&state.db, milestone_id).await?))
 }
 
+pub(crate) async fn delete_milestone(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let ctx = require_auth(&state, &headers).await?;
+    let user_id = uuid_from_str(&ctx.user.id)?;
+    let milestone_id = uuid_from_str(&id)?;
+    let workspace_id = assert_milestone_edit(&state.db, user_id, milestone_id).await?;
+    let mut tx = state.db.begin().await?;
+    sqlx::query("DELETE FROM milestones WHERE id = $1")
+        .bind(milestone_id)
+        .execute(&mut *tx)
+        .await?;
+    record_audit(
+        &mut *tx,
+        workspace_id,
+        user_id,
+        "deleted milestone",
+        "milestone",
+        Some(milestone_id),
+    )
+    .await?;
+    tx.commit().await?;
+    notify_workspace(&state, &ctx, &headers, workspace_id, "milestone");
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub(crate) async fn fetch_milestone(
     db: &PgPool,
     milestone_id: Uuid,
