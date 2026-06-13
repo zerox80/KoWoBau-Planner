@@ -72,27 +72,75 @@ pub(crate) fn gantt_view(
     let range = (max_day - min_day + 1).max(1) as usize;
     let chart_width = range * GANTT_DAY_WIDTH;
     let row_width = GANTT_LABEL_WIDTH + chart_width;
+    let month_segments = gantt_month_segments(min_day, range);
+    let month_columns = month_segments
+        .iter()
+        .map(|segment| format!("{}px", segment.days * GANTT_DAY_WIDTH))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let today = iso_day_number(&today_iso()).unwrap_or(i64::MIN);
+    let today_left = if (min_day..=max_day).contains(&today) {
+        Some(((today - min_day).max(0) as usize * GANTT_DAY_WIDTH) + (GANTT_DAY_WIDTH / 2))
+    } else {
+        None
+    };
+    let range_label = format!(
+        "{} - {}",
+        gantt_day_label(min_day, lang.get()),
+        gantt_day_label(max_day, lang.get())
+    );
+    let task_count = tasks.len();
+    let milestone_count = milestones.len();
     view! {
         <div class="gantt-panel">
+            <div class="gantt-toolbar">
+                <div>
+                    <strong>{range_label}</strong>
+                    <span>
+                        {task_count}
+                        " "
+                        {move || if lang.get() == Lang::De { "Aufgaben" } else { "tasks" }}
+                        " · "
+                        {milestone_count}
+                        " "
+                        {move || if lang.get() == Lang::De { "Meilensteine" } else { "milestones" }}
+                    </span>
+                </div>
+                <span class="gantt-hint">{move || if lang.get() == Lang::De { "Balken anklicken zum Öffnen" } else { "Click bars to open" }}</span>
+            </div>
             <div class="gantt-scroll" style=format!("width:{row_width}px")>
-                <div class="gantt-scale" style=format!("grid-template-columns:{GANTT_LABEL_WIDTH}px repeat({range}, {GANTT_DAY_WIDTH}px)")>
+                <div class="gantt-months" style=format!("grid-template-columns:{GANTT_LABEL_WIDTH}px {chart_width}px")>
                     <span></span>
+                    <div class="gantt-month-track" style=format!("grid-template-columns:{month_columns}")>
+                        {month_segments.iter().map(|segment| {
+                            let label = gantt_month_label(segment.year, segment.month, lang.get());
+                            view! { <span>{label}</span> }
+                        }).collect_view()}
+                    </div>
+                </div>
+                <div class="gantt-scale" style=format!("grid-template-columns:{GANTT_LABEL_WIDTH}px repeat({range}, {GANTT_DAY_WIDTH}px)")>
+                    <span>{move || if lang.get() == Lang::De { "Zeitachse" } else { "Timeline" }}</span>
                     {(0..range).map(|i| {
-                        let (_, _, d) = civil_from_days(min_day + i as i64);
-                        view! { <span>{d}</span> }
+                        let day = min_day + i as i64;
+                        let (_, _, d) = civil_from_days(day);
+                        let class_name = if is_weekend(day) { "weekend" } else { "" };
+                        view! { <span class=class_name>{d}</span> }
                     }).collect_view()}
                 </div>
                 <div class="gantt-milestones" style=format!("grid-template-columns:{GANTT_LABEL_WIDTH}px {chart_width}px")>
-                    <span>{move || if lang.get() == Lang::De { "Meilensteine" } else { "Milestones" }}</span>
+                    <span class="gantt-lane-label">{move || if lang.get() == Lang::De { "Meilensteine" } else { "Milestones" }}</span>
                     <div class="gantt-track">
+                        {today_left.map(|left| view! { <span class="gantt-today" style=format!("left:{left}px")></span> })}
                         {milestones.into_iter().map(|scheduled| {
                             let left = ((scheduled.day - min_day).max(0) as usize * GANTT_DAY_WIDTH) + (GANTT_DAY_WIDTH / 2);
                             let title = title_for(scheduled.milestone.title, scheduled.milestone.title_en, lang.get());
                             let date = fmt_date(&scheduled.milestone.due_date, lang.get());
+                            let class_name = if scheduled.milestone.done { "gantt-milestone done" } else { "gantt-milestone" };
                             view! {
-                                <span class="gantt-milestone" style=format!("left:{left}px") title=format!("{title} - {date}")>
+                                <span class=class_name style=format!("left:{left}px") title=format!("{title} - {date}")>
                                     <i></i>
                                     <b>{title}</b>
+                                    <small>{date}</small>
                                 </span>
                             }
                         }).collect_view()}
@@ -108,11 +156,24 @@ pub(crate) fn gantt_view(
                     let key = task.key.clone();
                     let title = task_title(&task, lang.get());
                     let color = status_color(&statuses, &task.status_id);
+                    let status_label = statuses.iter().find(|s| s.id == task.status_id).map(|s| status_name(s, lang.get()).to_string()).unwrap_or_default();
+                    let date_label = task.due_date.as_deref().map_or_else(
+                        || if lang.get() == Lang::De { "ohne Fälligkeitsdatum".into() } else { "no due date".into() },
+                        |date| fmt_date(date, lang.get()),
+                    );
                     let dep_count = task.dependency_ids.len();
                     view! {
                         <button class="gantt-row" style=format!("width:{row_width}px;grid-template-columns:{GANTT_LABEL_WIDTH}px {chart_width}px") on:click=move |_| set_open_task.set(Some(task_id.clone()))>
                             <span class="gantt-key">
-                                <b>{key}</b>
+                                <span class="gantt-key-main">
+                                    <i style=format!("background:{color}")></i>
+                                    <b>{key}</b>
+                                    <strong>{title.clone()}</strong>
+                                </span>
+                                <span class="gantt-key-meta">
+                                    <em>{status_label}</em>
+                                    <em>{date_label}</em>
+                                </span>
                                 {if dep_count > 0 {
                                     view! { <small title=move || if lang.get() == Lang::De { "Hat Abhängigkeiten" } else { "Has dependencies" }>{dep_count}</small> }.into_view()
                                 } else {
@@ -120,7 +181,10 @@ pub(crate) fn gantt_view(
                                 }}
                             </span>
                             <span class="gantt-track">
-                                <i class="gantt-bar" style=format!("left:{left}px;width:{width}px;background:{color}") title=title.clone()>{title}</i>
+                                {today_left.map(|left| view! { <span class="gantt-today" style=format!("left:{left}px")></span> })}
+                                <i class="gantt-bar" style=format!("left:{left}px;width:{width}px;background:{color}") title=title.clone()>
+                                    <b>{title}</b>
+                                </i>
                             </span>
                         </button>
                     }
@@ -130,8 +194,8 @@ pub(crate) fn gantt_view(
     }.into_view()
 }
 
-const GANTT_DAY_WIDTH: usize = 44;
-const GANTT_LABEL_WIDTH: usize = 88;
+const GANTT_DAY_WIDTH: usize = 50;
+const GANTT_LABEL_WIDTH: usize = 240;
 
 #[derive(Debug, Clone)]
 struct ScheduledTask {
@@ -174,6 +238,60 @@ pub(crate) fn timeline_bounds(
         });
     }
     bounds
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct GanttMonthSegment {
+    pub year: i32,
+    pub month: u32,
+    pub days: usize,
+}
+
+pub(crate) fn gantt_month_segments(min_day: i64, range: usize) -> Vec<GanttMonthSegment> {
+    let mut segments: Vec<GanttMonthSegment> = Vec::new();
+    for offset in 0..range {
+        let day = min_day + offset as i64;
+        let (year, month, _) = civil_from_days(day);
+        match segments.last_mut() {
+            Some(segment) if segment.year == year && segment.month == month => {
+                segment.days += 1;
+            }
+            _ => segments.push(GanttMonthSegment {
+                year,
+                month,
+                days: 1,
+            }),
+        }
+    }
+    segments
+}
+
+fn gantt_day_label(day: i64, lang: Lang) -> String {
+    let (year, month, date) = civil_from_days(day);
+    let month_label = if lang == Lang::De {
+        MONTHS_DE[(month - 1) as usize]
+    } else {
+        MONTHS_EN[(month - 1) as usize]
+    };
+    if lang == Lang::De {
+        format!("{date}. {month_label} {year}")
+    } else {
+        format!("{month_label} {date}, {year}")
+    }
+}
+
+fn gantt_month_label(year: i32, month: u32, lang: Lang) -> String {
+    let month_label = if lang == Lang::De {
+        MONTHS_DE_FULL[(month - 1) as usize]
+    } else {
+        MONTHS_EN_FULL[(month - 1) as usize]
+    };
+    format!("{month_label} {year}")
+}
+
+fn is_weekend(day: i64) -> bool {
+    let weekday = (day + 4).rem_euclid(7);
+    weekday >= 5
 }
 pub(crate) fn roadmap_view(
     boot: BootstrapDto,

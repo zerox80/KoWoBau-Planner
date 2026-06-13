@@ -87,6 +87,27 @@ fn gantt_bounds_include_milestones() {
 }
 
 #[test]
+fn gantt_month_segments_split_cross_month_ranges() {
+    let start = days_from_civil(2026, 6, 29);
+
+    assert_eq!(
+        gantt_month_segments(start, 4),
+        vec![
+            GanttMonthSegment {
+                year: 2026,
+                month: 6,
+                days: 2,
+            },
+            GanttMonthSegment {
+                year: 2026,
+                month: 7,
+                days: 2,
+            },
+        ]
+    );
+}
+
+#[test]
 fn mention_query_finds_trailing_fragment() {
     assert_eq!(mention_query("hallo @An"), Some((6, "An".to_string())));
     assert_eq!(mention_query("@"), Some((0, String::new())));
