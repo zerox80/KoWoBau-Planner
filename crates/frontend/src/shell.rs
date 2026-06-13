@@ -80,6 +80,7 @@ pub(crate) fn dashboard(
                     {nav_button(NavView::Roadmap, nav, set_nav, lang, None)}
                     {nav_button(NavView::Team, nav, set_nav, lang, None)}
                     {nav_button(NavView::Admin, nav, set_nav, lang, None)}
+                    {nav_button(NavView::Settings, nav, set_nav, lang, None)}
                 </nav>
 
                 <div class="user-card">
@@ -239,6 +240,7 @@ pub(crate) fn main_view(
         NavView::Roadmap => roadmap_view(boot, lang, set_open_task),
         NavView::Team => team_view(boot, lang),
         NavView::Admin => admin_view(boot, lang, set_data, set_error),
+        NavView::Settings => settings_view(lang),
     }
 }
 
@@ -253,6 +255,7 @@ pub(crate) enum AppIcon {
     Kanban,
     Roadmap,
     Settings,
+    Sliders,
     Ticket,
     Timeline,
     Users,
@@ -333,6 +336,16 @@ pub(crate) fn app_icon(icon: AppIcon) -> View {
                 <path d="m7.7 16.3-2.1 2.1"></path>
             </svg>
         }.into_view(),
+        AppIcon::Sliders => view! {
+            <svg class="app-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                <path d="M4 6h16"></path>
+                <path d="M4 12h16"></path>
+                <path d="M4 18h16"></path>
+                <circle cx="9" cy="6" r="2"></circle>
+                <circle cx="15" cy="12" r="2"></circle>
+                <circle cx="8" cy="18" r="2"></circle>
+            </svg>
+        }.into_view(),
         AppIcon::Ticket => view! {
             <svg class="app-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
                 <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2.2a2 2 0 0 0 0 3.6V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.2a2 2 0 0 0 0-3.6V8Z"></path>
@@ -396,6 +409,8 @@ pub(crate) fn header_title(boot: &BootstrapDto, nav: NavView, lang: Lang) -> Str
         (NavView::Team, Lang::En) => "Team".into(),
         (NavView::Admin, Lang::De) => "Administration".into(),
         (NavView::Admin, Lang::En) => "Administration".into(),
+        (NavView::Settings, Lang::De) => "Einstellungen".into(),
+        (NavView::Settings, Lang::En) => "Settings".into(),
     }
 }
 
@@ -467,6 +482,8 @@ pub(crate) fn header_subtitle(boot: &BootstrapDto, nav: NavView, lang: Lang) -> 
         }
         (NavView::Admin, Lang::De) => "Mitglieder, Rollen, System und Sicherheit".into(),
         (NavView::Admin, Lang::En) => "Members, roles, system and security".into(),
+        (NavView::Settings, Lang::De) => "Design und persönliche Einstellungen".into(),
+        (NavView::Settings, Lang::En) => "Appearance and personal preferences".into(),
     }
 }
 
@@ -480,5 +497,6 @@ pub(crate) fn nav_icon(view: NavView) -> AppIcon {
         NavView::Roadmap => AppIcon::Roadmap,
         NavView::Team => AppIcon::Users,
         NavView::Admin => AppIcon::Settings,
+        NavView::Settings => AppIcon::Sliders,
     }
 }

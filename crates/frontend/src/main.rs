@@ -22,6 +22,7 @@ pub(crate) enum NavView {
     Roadmap,
     Team,
     Admin,
+    Settings,
 }
 
 impl NavView {
@@ -43,6 +44,8 @@ impl NavView {
             (Self::Team, Lang::En) => "Team",
             (Self::Admin, Lang::De) => "Admin",
             (Self::Admin, Lang::En) => "Admin",
+            (Self::Settings, Lang::De) => "Einstellungen",
+            (Self::Settings, Lang::En) => "Settings",
         }
     }
 }
@@ -80,6 +83,20 @@ fn main() {
 #[component]
 pub(crate) fn AppRoot() -> impl IntoView {
     let (lang, set_lang) = create_signal(Lang::De);
+    let (theme, set_theme) = create_signal(load_theme());
+    // Reflect the selected theme onto <html data-theme>. Runs once on boot
+    // (applying the stored choice) and on every later change. Persistence only
+    // happens on actual user changes (prev.is_some()); the boot value was just
+    // read back from localStorage, so writing it again would be redundant.
+    create_effect(move |prev| {
+        let theme = theme.get();
+        apply_theme(theme);
+        if prev.is_some() {
+            persist_theme(theme);
+        }
+        theme
+    });
+    provide_context((theme, set_theme));
     let (data, set_data) = create_signal::<Option<BootstrapDto>>(None);
     let (nav, set_nav) = create_signal(NavView::Overview);
     let (board_mode, set_board_mode) = create_signal("board".to_string());
@@ -178,10 +195,12 @@ mod cards;
 mod i18n;
 mod modals;
 mod realtime;
+mod settings;
 mod shell;
 mod task_detail;
 #[cfg(test)]
 mod tests;
+mod theme;
 mod ticket_detail;
 mod views_board;
 mod views_gantt;
@@ -196,8 +215,10 @@ pub(crate) use cards::*;
 pub(crate) use i18n::*;
 pub(crate) use modals::*;
 pub(crate) use realtime::*;
+pub(crate) use settings::*;
 pub(crate) use shell::*;
 pub(crate) use task_detail::*;
+pub(crate) use theme::*;
 pub(crate) use ticket_detail::*;
 pub(crate) use views_board::*;
 pub(crate) use views_gantt::*;
