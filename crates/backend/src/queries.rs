@@ -225,8 +225,8 @@ pub(crate) async fn fetch_registered_users(
         "SELECT u.id, u.email, u.name, u.created_at, \
                 m.id AS membership_id, m.role \
          FROM users u \
-         JOIN memberships m ON m.user_id = u.id \
-         WHERE m.workspace_id = $1 AND m.status = 'active' \
+         LEFT JOIN memberships m ON m.user_id = u.id \
+              AND m.workspace_id = $1 AND m.status = 'active' \
          ORDER BY u.created_at DESC, u.email",
     )
     .bind(workspace_id)

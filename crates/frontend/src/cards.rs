@@ -10,6 +10,7 @@ pub(crate) fn task_detail_readonly(
     set_error: WriteSignal<Option<String>>,
 ) -> View {
     let (comment, set_comment) = create_signal(String::new());
+    let can_edit = boot.current_role.can_edit();
     let status_label = boot
         .statuses
         .iter()
@@ -60,7 +61,13 @@ pub(crate) fn task_detail_readonly(
                     let label = title_for(sub.title, sub.title_en, lang.get());
                     view! {
                         <label class="subtask">
-                            <input type="checkbox" checked=done on:change=move |_| toggle_subtask(task_id.clone(), sub_id.clone(), !done, set_data, set_error)/>
+                            {if can_edit {
+                                view! {
+                                    <input type="checkbox" checked=done on:change=move |_| toggle_subtask(task_id.clone(), sub_id.clone(), !done, set_data, set_error)/>
+                                }.into_view()
+                            } else {
+                                view! { <input type="checkbox" checked=done disabled/> }.into_view()
+                            }}
                             <span>{label}</span>
                         </label>
                     }
@@ -134,6 +141,7 @@ pub(crate) fn task_card(
     lang: ReadSignal<Lang>,
     set_open_task: WriteSignal<Option<String>>,
     set_drag_task: WriteSignal<Option<String>>,
+    can_edit: bool,
 ) -> View {
     let pct = subtask_pct(&task);
     let drag_id = task.id.clone();
@@ -149,8 +157,12 @@ pub(crate) fn task_card(
         .map_or_else(|| "-".into(), |d| fmt_date(d, lang.get()));
     let assignees = task.assignee_ids;
     view! {
-        <article class="task-card" draggable="true"
-            on:dragstart=move |_| set_drag_task.set(Some(drag_id.clone()))
+        <article class="task-card" draggable=if can_edit { "true" } else { "false" }
+            on:dragstart=move |_| {
+                if can_edit {
+                    set_drag_task.set(Some(drag_id.clone()));
+                }
+            }
             on:click=move |_| set_open_task.set(Some(open_id.clone()))>
             <div class="task-tags">
                 <span class=tag_class>{tag}</span>

@@ -131,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("./migrations").run(&db).await?;
     if cfg.seed_demo {
         tracing::info!("KOWOBAU_SEED_DEMO is enabled; seeding demo data on empty database");
-        seed_demo(&db).await?;
+        seed_demo(&db, &cfg.upload_dir).await?;
     } else {
         tracing::info!("demo seed disabled (set KOWOBAU_SEED_DEMO=true to enable)");
         // The demo seed creates accounts with the well-known password

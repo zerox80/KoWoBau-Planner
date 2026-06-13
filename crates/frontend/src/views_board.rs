@@ -44,7 +44,7 @@ pub(crate) fn overview_view(
     let statuses_for_legend = boot.statuses.clone();
     let tasks_for_legend = boot.tasks.clone();
     let milestones = boot.milestones.clone();
-    let can_edit_milestones = boot.current_role.can_edit();
+    let can_edit = boot.current_role.can_edit();
     let boot_for_milestone_create = boot.clone();
 
     view! {
@@ -82,14 +82,26 @@ pub(crate) fn overview_view(
                 <div class="panel">
                     <div class="panel-head">
                         <h3>{move || if lang.get() == Lang::De { "Anstehende Meilensteine" } else { "Upcoming milestones" }}</h3>
-                        <button class="icon-button small" title=move || if lang.get() == Lang::De { "Meilenstein erstellen" } else { "Create milestone" } on:click=move |_| set_show_create_milestone.set(true)>"+ "</button>
+                        {if can_edit {
+                            view! {
+                                <button class="icon-button small" title=move || if lang.get() == Lang::De { "Meilenstein erstellen" } else { "Create milestone" } on:click=move |_| set_show_create_milestone.set(true)>"+ "</button>
+                            }.into_view()
+                        } else {
+                            view! { <span/> }.into_view()
+                        }}
                     </div>
                     {if milestones.is_empty() {
                         view! {
                             <div class="empty-state compact">
                                 <strong>{move || if lang.get() == Lang::De { "Keine Meilensteine geplant" } else { "No milestones planned" }}</strong>
                                 <span>{move || if lang.get() == Lang::De { "Sobald Termine angelegt sind, erscheinen sie hier." } else { "Scheduled milestones will appear here." }}</span>
-                                <button class="btn primary" on:click=move |_| set_show_create_milestone.set(true)>{move || if lang.get() == Lang::De { "Meilenstein anlegen" } else { "Create milestone" }}</button>
+                                {if can_edit {
+                                    view! {
+                                        <button class="btn primary" on:click=move |_| set_show_create_milestone.set(true)>{move || if lang.get() == Lang::De { "Meilenstein anlegen" } else { "Create milestone" }}</button>
+                                    }.into_view()
+                                } else {
+                                    view! { <span/> }.into_view()
+                                }}
                             </div>
                         }.into_view()
                     } else {
@@ -98,7 +110,7 @@ pub(crate) fn overview_view(
                                 <span>"◇"</span>
                                 <strong>{title_for(m.title.clone(), m.title_en.clone(), lang.get())}</strong>
                                 <small>{fmt_date(m.due_date.as_str(), lang.get())}</small>
-                                {if can_edit_milestones {
+                                {if can_edit {
                                     let milestone_id = m.id.clone();
                                     let milestone_title = title_for(m.title.clone(), m.title_en.clone(), lang.get());
                                     view! {
@@ -120,7 +132,7 @@ pub(crate) fn overview_view(
                     }).collect_view()}
                 </div>
             </div>
-            {move || if show_create_milestone.get() {
+            {move || if can_edit && show_create_milestone.get() {
                 create_milestone_modal(boot_for_milestone_create.clone(), lang, set_show_create_milestone, set_data, set_error).into_view()
             } else {
                 view! { <span/> }.into_view()
@@ -140,6 +152,7 @@ pub(crate) fn board_view(
     set_data: WriteSignal<Option<BootstrapDto>>,
     set_error: WriteSignal<Option<String>>,
 ) -> View {
+    let can_edit = boot.current_role.can_edit();
     view! {
         <div class="board-grid">
             {boot.statuses.clone().into_iter().map(|status| {
@@ -153,13 +166,24 @@ pub(crate) fn board_view(
                         on:dragover=move |ev: DragEvent| ev.prevent_default()
                         on:drop=move |ev: DragEvent| {
                             ev.prevent_default();
-                            if let Some(task_id) = drag_task.get_untracked() {
-                                optimistic_move(task_id, status_id.clone(), set_data, set_error);
-                                set_drag_task.set(None);
+                            if can_edit {
+                                if let Some(task_id) = drag_task.get_untracked() {
+                                    optimistic_move(task_id, status_id.clone(), set_data, set_error);
+                                    set_drag_task.set(None);
+                                }
                             }
                         }>
-                        <header><b style=format!("background:{}", status_color)></b><strong>{status_label}</strong><small>{task_count}</small><button on:click=move |_| set_show_create.set(true)>"+ "</button></header>
-                        {tasks.into_iter().map(|task| task_card(task, boot.members.clone(), lang, set_open_task, set_drag_task)).collect_view()}
+                        <header>
+                            <b style=format!("background:{}", status_color)></b>
+                            <strong>{status_label}</strong>
+                            <small>{task_count}</small>
+                            {if can_edit {
+                                view! { <button on:click=move |_| set_show_create.set(true)>"+ "</button> }.into_view()
+                            } else {
+                                view! { <span/> }.into_view()
+                            }}
+                        </header>
+                        {tasks.into_iter().map(|task| task_card(task, boot.members.clone(), lang, set_open_task, set_drag_task, can_edit)).collect_view()}
                     </section>
                 }
             }).collect_view()}
@@ -203,6 +227,7 @@ pub(crate) fn ticket_view(
     set_show_create_ticket: WriteSignal<bool>,
     set_open_ticket: WriteSignal<Option<String>>,
 ) -> View {
+    let can_edit = boot.current_role.can_edit();
     let open = boot
         .tickets
         .iter()
@@ -239,7 +264,13 @@ pub(crate) fn ticket_view(
                     view! {
                         <div class="empty-state">
                             <strong>{move || if lang.get() == Lang::De { "Noch keine Tickets" } else { "No tickets yet" }}</strong>
-                            <button class="btn primary" on:click=move |_| set_show_create_ticket.set(true)>{move || if lang.get() == Lang::De { "Ticket erstellen" } else { "Create ticket" }}</button>
+                            {if can_edit {
+                                view! {
+                                    <button class="btn primary" on:click=move |_| set_show_create_ticket.set(true)>{move || if lang.get() == Lang::De { "Ticket erstellen" } else { "Create ticket" }}</button>
+                                }.into_view()
+                            } else {
+                                view! { <span/> }.into_view()
+                            }}
                         </div>
                     }.into_view()
                 } else {

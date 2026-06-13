@@ -57,6 +57,15 @@ pub(crate) async fn update_subtask(
         }
     }
     let mut tx = state.db.begin().await?;
+    let exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM subtasks WHERE id = $1 AND task_id = $2")
+            .bind(subtask_id)
+            .bind(task_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if exists.is_none() {
+        return Err(AppError::NotFound);
+    }
     if let Some(title) = payload.title {
         sqlx::query("UPDATE subtasks SET title = $1 WHERE id = $2 AND task_id = $3")
             .bind(title.trim())
@@ -99,11 +108,14 @@ pub(crate) async fn delete_subtask(
     let subtask_id = uuid_from_str(&subtask_id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     let mut tx = state.db.begin().await?;
-    sqlx::query("DELETE FROM subtasks WHERE id = $1 AND task_id = $2")
+    let deleted = sqlx::query("DELETE FROM subtasks WHERE id = $1 AND task_id = $2")
         .bind(subtask_id)
         .bind(task_id)
         .execute(&mut *tx)
         .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     touch_task(&mut *tx, task_id).await?;
     record_audit(
         &mut *tx,

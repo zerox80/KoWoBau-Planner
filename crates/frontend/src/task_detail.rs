@@ -27,7 +27,7 @@ pub(crate) fn task_detail(
     let (mention_index, set_mention_index) = create_signal(0usize);
     let mention_members = store_value(boot.members.clone());
     // Editing or a half-typed comment must not be wiped by a background refetch.
-    hold_realtime_while(move || editing.get() || !comment.get().trim().is_empty());
+    hold_realtime_while(move || (can_edit && editing.get()) || !comment.get().trim().is_empty());
 
     let status_label = boot
         .statuses
@@ -197,7 +197,7 @@ pub(crate) fn task_detail(
         <aside class="task-drawer">
             <header>
                 <span>{task.key.clone()}</span>
-                {move || if editing.get() {
+                {move || if can_edit && editing.get() {
                     let current = status_edit.get_untracked();
                     view! {
                         <select class="compact-select" on:change=move |ev| set_status_edit.set(select_value(&ev))>
@@ -212,7 +212,7 @@ pub(crate) fn task_detail(
                     view! { <b>{status_label.clone()}</b> }.into_view()
                 }}
                 <span class="drawer-actions">
-                    {move || if editing.get() {
+                    {move || if !can_edit || editing.get() {
                         view! { <span/> }.into_view()
                     } else {
                         view! {
@@ -221,11 +221,17 @@ pub(crate) fn task_detail(
                             </button>
                         }.into_view()
                     }}
-                    <button class="danger-link" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
+                    {if can_edit {
+                        view! {
+                            <button class="danger-link" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
+                        }.into_view()
+                    } else {
+                        view! { <span/> }.into_view()
+                    }}
                     <button class="drawer-close" on:click=move |_| set_open_task.set(None)>"x"</button>
                 </span>
             </header>
-            {move || if editing.get() {
+            {move || if can_edit && editing.get() {
                 view! {
                     <label class="drawer-field title-field">
                         <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
@@ -238,7 +244,7 @@ pub(crate) fn task_detail(
             } else {
                 view! { <h2>{title.clone()}</h2> }.into_view()
             }}
-            {move || if editing.get() {
+            {move || if can_edit && editing.get() {
                 let current_assignee = assignee_edit.get_untracked();
                 let current_priority = priority_edit.get_untracked();
                 let current_phase = phase_edit.get_untracked();
@@ -298,7 +304,7 @@ pub(crate) fn task_detail(
             }}
             <section>
                 <h3>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</h3>
-                {move || if editing.get() {
+                {move || if can_edit && editing.get() {
                     view! {
                         <textarea class="drawer-textarea" prop:value=description_edit on:input=move |ev| set_description_edit.set(textarea_value(&ev))></textarea>
                     }.into_view()
@@ -316,7 +322,13 @@ pub(crate) fn task_detail(
                     let label = title_for(sub.title, sub.title_en, lang.get());
                     view! {
                         <label class="subtask">
-                            <input type="checkbox" checked=done on:change=move |_| toggle_subtask(task_id.clone(), sub_id.clone(), !done, set_data, set_error)/>
+                            {if can_edit {
+                                view! {
+                                    <input type="checkbox" checked=done on:change=move |_| toggle_subtask(task_id.clone(), sub_id.clone(), !done, set_data, set_error)/>
+                                }.into_view()
+                            } else {
+                                view! { <input type="checkbox" checked=done disabled/> }.into_view()
+                            }}
                             <span>{label}</span>
                         </label>
                     }
@@ -429,7 +441,7 @@ pub(crate) fn task_detail(
                     <button on:click=move |_| submit_comment_for_button()>"Enter"</button>
                 </div>
             </section>
-            <section class="drawer-edit-actions" style=move || if editing.get() { String::new() } else { "display:none".to_string() }>
+            <section class="drawer-edit-actions" style=move || if can_edit && editing.get() { String::new() } else { "display:none".to_string() }>
                 {move || local_error.get().map(|err| view! { <div class="modal-error inline">{err}</div> })}
                 <button class="btn ghost" on:click=move |_| {
                     set_title_edit.set(reset_title.clone());

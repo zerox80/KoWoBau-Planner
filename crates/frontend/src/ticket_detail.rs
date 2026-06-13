@@ -8,6 +8,7 @@ pub(crate) fn ticket_detail(
     set_data: WriteSignal<Option<BootstrapDto>>,
     set_error: WriteSignal<Option<String>>,
 ) -> View {
+    let can_edit = boot.current_role.can_edit();
     let (title, set_title) = create_signal(ticket.title.clone());
     let (description, set_description) = create_signal(ticket.description.clone());
     let (requester_name, set_requester_name) = create_signal(ticket.requester_name.clone());
@@ -17,9 +18,9 @@ pub(crate) fn ticket_detail(
         create_signal(ticket.assignee_id.clone().unwrap_or_default());
     let (busy, set_busy) = create_signal(false);
     let (local_error, set_local_error) = create_signal::<Option<String>>(None);
-    // The whole ticket drawer is an edit form; a background refetch would
-    // re-render it and discard in-progress changes.
-    hold_realtime_while(|| true);
+    // Editable ticket drawers hold realtime refetches so in-progress changes
+    // are not discarded. Viewers see a read-only drawer.
+    hold_realtime_while(move || can_edit);
 
     let ticket_id_for_save = ticket.id.clone();
     let save = move |_| {
@@ -103,30 +104,30 @@ pub(crate) fn ticket_detail(
                     <input class="title-input" prop:value=title on:input=move |ev| {
                         set_title.set(event_target_value(&ev));
                         set_local_error.set(None);
-                    }/>
+                    } disabled=!can_edit/>
                 </label>
                 {move || local_error.get().map(|err| view! {
                     <div class="modal-error">{err}</div>
                 })}
                 <label class="modal-field">
                     <span>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</span>
-                    <textarea prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
+                    <textarea prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev)) disabled=!can_edit></textarea>
                 </label>
                 <div class="modal-meta ticket-meta">
-                    <input placeholder=move || if lang.get() == Lang::De { "Melder / Kontakt" } else { "Requester / contact" } prop:value=requester_name on:input=move |ev| set_requester_name.set(event_target_value(&ev))/>
-                    <select on:change=move |ev| set_status.set(ticket_status_from_value(&select_value(&ev)))>
+                    <input placeholder=move || if lang.get() == Lang::De { "Melder / Kontakt" } else { "Requester / contact" } prop:value=requester_name on:input=move |ev| set_requester_name.set(event_target_value(&ev)) disabled=!can_edit/>
+                    <select on:change=move |ev| set_status.set(ticket_status_from_value(&select_value(&ev))) disabled=!can_edit>
                         <option value="open" selected=current_status == TicketStatus::Open>{move || if lang.get() == Lang::De { "Offen" } else { "Open" }}</option>
                         <option value="in_progress" selected=current_status == TicketStatus::InProgress>{move || if lang.get() == Lang::De { "In Arbeit" } else { "In progress" }}</option>
                         <option value="resolved" selected=current_status == TicketStatus::Resolved>{move || if lang.get() == Lang::De { "Geloest" } else { "Resolved" }}</option>
                         <option value="closed" selected=current_status == TicketStatus::Closed>{move || if lang.get() == Lang::De { "Geschlossen" } else { "Closed" }}</option>
                     </select>
-                    <select on:change=move |ev| set_priority.set(priority_from_value(&select_value(&ev)))>
+                    <select on:change=move |ev| set_priority.set(priority_from_value(&select_value(&ev))) disabled=!can_edit>
                         <option value="urgent" selected=current_priority == Priority::Urgent>{move || if lang.get() == Lang::De { "Dringend" } else { "Urgent" }}</option>
                         <option value="high" selected=current_priority == Priority::High>{move || if lang.get() == Lang::De { "Hoch" } else { "High" }}</option>
                         <option value="medium" selected=current_priority == Priority::Medium>{move || if lang.get() == Lang::De { "Mittel" } else { "Medium" }}</option>
                         <option value="low" selected=current_priority == Priority::Low>{move || if lang.get() == Lang::De { "Niedrig" } else { "Low" }}</option>
                     </select>
-                    <select on:change=move |ev| set_assignee_id.set(select_value(&ev))>
+                    <select on:change=move |ev| set_assignee_id.set(select_value(&ev)) disabled=!can_edit>
                         <option value="" selected=current_assignee.is_empty()>{move || if lang.get() == Lang::De { "Nicht zugewiesen" } else { "Unassigned" }}</option>
                         {boot.members.into_iter().map(|m| {
                             let selected = current_assignee == m.user_id;
@@ -135,9 +136,21 @@ pub(crate) fn ticket_detail(
                     </select>
                 </div>
                 <footer>
-                    <button class="danger-link danger-action" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
+                    {if can_edit {
+                        view! {
+                            <button class="danger-link danger-action" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
+                        }.into_view()
+                    } else {
+                        view! { <span/> }.into_view()
+                    }}
                     <button class="btn ghost" on:click=move |_| set_open_ticket.set(None)>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
-                    <button class="btn primary" disabled=move || busy.get() on:click=save>{move || if lang.get() == Lang::De { "Speichern" } else { "Save" }}</button>
+                    {if can_edit {
+                        view! {
+                            <button class="btn primary" disabled=move || busy.get() on:click=save>{move || if lang.get() == Lang::De { "Speichern" } else { "Save" }}</button>
+                        }.into_view()
+                    } else {
+                        view! { <span/> }.into_view()
+                    }}
                 </footer>
             </section>
         </div>

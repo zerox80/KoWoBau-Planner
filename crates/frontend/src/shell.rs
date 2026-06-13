@@ -25,6 +25,7 @@ pub(crate) fn dashboard(
     set_error: WriteSignal<Option<String>>,
 ) -> View {
     let unread = boot.notifications.iter().filter(|n| n.unread).count();
+    let can_edit = boot.current_role.can_edit();
     let title = header_title(&boot, nav.get(), lang.get());
     let subtitle = header_subtitle(&boot, nav.get(), lang.get());
     let boot_for_main = boot.clone();
@@ -91,21 +92,27 @@ pub(crate) fn dashboard(
                             view! { <span/> }.into_view()
                         }}
                     </span>
-                    <button class="btn primary" on:click=move |_| {
-                        if nav.get_untracked() == NavView::Tickets {
-                            set_show_create_ticket.set(true);
-                        } else {
-                            set_show_create.set(true);
-                        }
-                    }>
-                        "+ "
-                        {move || match (nav.get(), lang.get()) {
-                            (NavView::Tickets, Lang::De) => "Neues Ticket",
-                            (NavView::Tickets, Lang::En) => "New ticket",
-                            (_, Lang::De) => "Neue Aufgabe",
-                            (_, Lang::En) => "New task",
-                        }}
-                    </button>
+                    {move || if can_edit {
+                        view! {
+                            <button class="btn primary" on:click=move |_| {
+                                if nav.get_untracked() == NavView::Tickets {
+                                    set_show_create_ticket.set(true);
+                                } else {
+                                    set_show_create.set(true);
+                                }
+                            }>
+                                "+ "
+                                {move || match (nav.get(), lang.get()) {
+                                    (NavView::Tickets, Lang::De) => "Neues Ticket",
+                                    (NavView::Tickets, Lang::En) => "New ticket",
+                                    (_, Lang::De) => "Neue Aufgabe",
+                                    (_, Lang::En) => "New task",
+                                }}
+                            </button>
+                        }.into_view()
+                    } else {
+                        view! { <span/> }.into_view()
+                    }}
                 </header>
 
                 <section class="page-head">
@@ -143,13 +150,13 @@ pub(crate) fn dashboard(
                 </section>
             </main>
 
-            {move || if show_create.get() {
+            {move || if can_edit && show_create.get() {
                 create_task_modal(boot_for_create.clone(), lang, set_show_create, set_open_task, set_data, set_error).into_view()
             } else {
                 view! { <span/> }.into_view()
             }}
 
-            {move || if show_create_ticket.get() {
+            {move || if can_edit && show_create_ticket.get() {
                 create_ticket_modal(boot_for_ticket_create.clone(), lang, set_show_create_ticket, set_data, set_error).into_view()
             } else {
                 view! { <span/> }.into_view()
