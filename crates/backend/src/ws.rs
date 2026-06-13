@@ -19,14 +19,18 @@ pub(crate) async fn read_notification(
 pub(crate) async fn read_all_notifications(
     State(state): State<AppState>,
     headers: HeaderMap,
+    Query(query): Query<WorkspaceQuery>,
 ) -> Result<StatusCode, AppError> {
     let ctx = require_auth(&state, &headers).await?;
     let user_id = uuid_from_str(&ctx.user.id)?;
     let (workspace_id,): (Uuid,) = sqlx::query_as(
         "SELECT workspace_id FROM memberships \
-         WHERE user_id = $1 AND status = 'active' ORDER BY created_at ASC LIMIT 1",
+         WHERE user_id = $1 AND status = 'active' \
+         AND ($2::uuid IS NULL OR workspace_id = $2) \
+         ORDER BY created_at ASC LIMIT 1",
     )
     .bind(user_id)
+    .bind(query.workspace_uuid()?)
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::Forbidden)?;
