@@ -255,6 +255,7 @@ pub(crate) enum AppIcon {
     Kanban,
     Roadmap,
     Settings,
+    Sliders,
     Ticket,
     Timeline,
     Users,
@@ -333,6 +334,16 @@ pub(crate) fn app_icon(icon: AppIcon) -> View {
                 <path d="m16.3 16.3 2.1 2.1"></path>
                 <path d="m18.4 5.6-2.1 2.1"></path>
                 <path d="m7.7 16.3-2.1 2.1"></path>
+            </svg>
+        }.into_view(),
+        AppIcon::Sliders => view! {
+            <svg class="app-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                <path d="M4 6h16"></path>
+                <path d="M4 12h16"></path>
+                <path d="M4 18h16"></path>
+                <circle cx="9" cy="6" r="2"></circle>
+                <circle cx="15" cy="12" r="2"></circle>
+                <circle cx="8" cy="18" r="2"></circle>
             </svg>
         }.into_view(),
         AppIcon::Ticket => view! {
@@ -486,6 +497,6 @@ pub(crate) fn nav_icon(view: NavView) -> AppIcon {
         NavView::Roadmap => AppIcon::Roadmap,
         NavView::Team => AppIcon::Users,
         NavView::Admin => AppIcon::Settings,
-        NavView::Settings => AppIcon::Settings,
+        NavView::Settings => AppIcon::Sliders,
     }
 }

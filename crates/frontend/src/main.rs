@@ -84,9 +84,18 @@ fn main() {
 pub(crate) fn AppRoot() -> impl IntoView {
     let (lang, set_lang) = create_signal(Lang::De);
     let (theme, set_theme) = create_signal(load_theme());
-    // Reflect the selected theme onto <html data-theme> and persist it. Runs
-    // once on boot (applying the stored choice) and on every later change.
-    create_effect(move |_| apply_theme(theme.get()));
+    // Reflect the selected theme onto <html data-theme>. Runs once on boot
+    // (applying the stored choice) and on every later change. Persistence only
+    // happens on actual user changes (prev.is_some()); the boot value was just
+    // read back from localStorage, so writing it again would be redundant.
+    create_effect(move |prev| {
+        let theme = theme.get();
+        apply_theme(theme);
+        if prev.is_some() {
+            persist_theme(theme);
+        }
+        theme
+    });
     provide_context((theme, set_theme));
     let (data, set_data) = create_signal::<Option<BootstrapDto>>(None);
     let (nav, set_nav) = create_signal(NavView::Overview);

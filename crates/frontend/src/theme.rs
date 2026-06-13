@@ -77,8 +77,9 @@ pub(crate) fn load_theme() -> Theme {
         .map_or(Theme::Standard, |slug| Theme::from_slug(&slug))
 }
 
-/// Applies the theme to the document (`<html data-theme="…">`) and persists the
-/// choice. Called once on boot and on every change via a Leptos effect.
+/// Applies the theme to the document (`<html data-theme="…">`). Called once on
+/// boot (reflecting the stored choice) and on every later change via a Leptos
+/// effect. Persistence is handled separately by `persist_theme`.
 pub(crate) fn apply_theme(theme: Theme) {
     if let Some(element) = web_sys::window()
         .and_then(|w| w.document())
@@ -86,6 +87,11 @@ pub(crate) fn apply_theme(theme: Theme) {
     {
         let _ = element.set_attribute("data-theme", theme.slug());
     }
+}
+
+/// Persists the selected theme to `localStorage`. Only called when the user
+/// changes the theme — the boot value was just read back from storage.
+pub(crate) fn persist_theme(theme: Theme) {
     if let Some(storage) = local_storage() {
         let _ = storage.set_item(THEME_STORAGE_KEY, theme.slug());
     }
