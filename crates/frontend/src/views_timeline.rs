@@ -166,6 +166,7 @@ pub(crate) fn gantt_view(
                         || if lang.get() == Lang::De { "ohne Fälligkeitsdatum".into() } else { "no due date".into() },
                         |date| fmt_date(date, lang.get()),
                     );
+                    let bar_class = if width < 112 { "gantt-bar compact" } else { "gantt-bar" };
                     let dep_count = task.dependency_ids.len();
                     view! {
                         <button class="gantt-row" style=format!("width:{row_width}px;grid-template-columns:{GANTT_LABEL_WIDTH}px {chart_width}px") on:click=move |_| set_open_task.set(Some(task_id.clone()))>
@@ -187,7 +188,7 @@ pub(crate) fn gantt_view(
                             </span>
                             <span class="gantt-track">
                                 {today_left.map(|left| view! { <span class="gantt-today" style=format!("left:{left}px")></span> })}
-                                <i class="gantt-bar" style=format!("left:{left}px;width:{width}px;background:{color}") title=title.clone()>
+                                <i class=bar_class style=format!("left:{left}px;width:{width}px;background:{color}") title=title.clone()>
                                     <b>{title}</b>
                                 </i>
                             </span>
@@ -199,8 +200,8 @@ pub(crate) fn gantt_view(
     }.into_view()
 }
 
-const GANTT_DAY_WIDTH: usize = 50;
-const GANTT_LABEL_WIDTH: usize = 240;
+const GANTT_DAY_WIDTH: usize = 58;
+const GANTT_LABEL_WIDTH: usize = 320;
 
 #[derive(Debug, Clone)]
 struct ScheduledTask {
