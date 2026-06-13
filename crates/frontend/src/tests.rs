@@ -33,6 +33,60 @@ fn dates_format_with_real_month_names() {
 }
 
 #[test]
+fn gantt_dates_include_partial_task_dates() {
+    let june_10 = days_from_civil(2026, 6, 10);
+    let june_12 = days_from_civil(2026, 6, 12);
+
+    assert_eq!(
+        scheduled_task_days(Some("2026-06-10"), Some("2026-06-12")),
+        Some((june_10, june_12))
+    );
+    assert_eq!(
+        scheduled_task_days(None, Some("2026-06-12")),
+        Some((june_12, june_12))
+    );
+    assert_eq!(
+        scheduled_task_days(Some("2026-06-10"), None),
+        Some((june_10, june_10))
+    );
+}
+
+#[test]
+fn gantt_dates_ignore_invalid_unscheduled_tasks() {
+    assert_eq!(scheduled_task_days(None, None), None);
+    assert_eq!(scheduled_task_days(Some("not-a-date"), None), None);
+    assert_eq!(scheduled_task_days(None, Some("2026-99-99")), None);
+}
+
+#[test]
+fn gantt_dates_normalize_reversed_ranges() {
+    assert_eq!(
+        scheduled_task_days(Some("2026-06-12"), Some("2026-06-10")),
+        Some((days_from_civil(2026, 6, 10), days_from_civil(2026, 6, 12)))
+    );
+}
+
+#[test]
+fn gantt_bounds_include_milestones() {
+    let task_start = days_from_civil(2026, 6, 10);
+    let task_due = days_from_civil(2026, 6, 12);
+    let milestone = days_from_civil(2026, 6, 18);
+
+    assert_eq!(
+        timeline_bounds([(task_start, task_due)], [milestone]),
+        Some((task_start, milestone))
+    );
+    assert_eq!(
+        timeline_bounds([], [milestone]),
+        Some((milestone, milestone))
+    );
+    assert_eq!(
+        timeline_bounds(std::iter::empty::<(i64, i64)>(), std::iter::empty::<i64>()),
+        None
+    );
+}
+
+#[test]
 fn mention_query_finds_trailing_fragment() {
     assert_eq!(mention_query("hallo @An"), Some((6, "An".to_string())));
     assert_eq!(mention_query("@"), Some((0, String::new())));

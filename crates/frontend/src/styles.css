@@ -204,11 +204,23 @@ p { margin: 0; }
 .day-cell.today { box-shadow: 0 0 0 2px var(--accent); }
 .day-cell.today strong { color: var(--accent); }
 .cal-chip { width: 100%; text-align: left; border-radius: 8px; background: var(--accent-soft); color: var(--accent-press); padding: 6px 8px; font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gantt-panel { overflow-x: auto; }
-.gantt-scale { display: grid; grid-template-columns: repeat(18, 44px); color: var(--ink-3); font: 700 11px var(--font-mono); margin-left: 70px; }
-.gantt-row { position: relative; display: block; width: 870px; height: 42px; text-align: left; border-bottom: 1px solid var(--line); }
-.gantt-row > span { position: absolute; left: 0; top: 12px; width: 60px; color: var(--ink-3); font: 700 11px var(--font-mono); }
-.gantt-row i { position: absolute; top: 8px; height: 26px; border-radius: 999px; color: white; font-style: normal; font-size: 12px; font-weight: 700; padding: 5px 11px; overflow: hidden; white-space: nowrap; }
+.gantt-panel { overflow-x: auto; min-height: 168px; }
+.gantt-scroll { min-width: 100%; }
+.gantt-scale, .gantt-milestones, .gantt-row { display: grid; align-items: center; }
+.gantt-scale { color: var(--ink-3); font: 700 11px var(--font-mono); padding-bottom: 8px; }
+.gantt-scale span { min-width: 0; text-align: center; }
+.gantt-milestones { min-height: 38px; border-bottom: 1px solid var(--line); color: var(--ink-3); font: 700 11px var(--font-mono); }
+.gantt-milestones > span { padding-right: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-track { position: relative; height: 100%; min-height: 34px; background-image: linear-gradient(to right, var(--line) 1px, transparent 1px); background-size: 44px 100%; }
+.gantt-milestone { position: absolute; top: 7px; transform: translateX(-7px); display: flex; align-items: center; gap: 6px; max-width: 190px; color: var(--ink-2); }
+.gantt-milestone i { width: 12px; height: 12px; flex: none; transform: rotate(45deg); border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+.gantt-milestone b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 11px var(--font-body); }
+.gantt-row { height: 44px; text-align: left; border-bottom: 1px solid var(--line); }
+.gantt-row:hover { background: var(--surface-2); }
+.gantt-key { display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 10px; color: var(--ink-3); font: 700 11px var(--font-mono); }
+.gantt-key b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-key small { min-width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--accent-soft); color: var(--accent-press); font: 800 10px var(--font-mono); }
+.gantt-bar { position: absolute; top: 8px; height: 26px; border-radius: 999px; color: white; font-style: normal; font-size: 12px; font-weight: 700; padding: 5px 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 10px 20px -16px rgba(0,0,0,.55); }
 .roadmap-grid, .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .road-card, .member-card { background: var(--surface); border-radius: 14px; box-shadow: 0 0 0 1px var(--line); padding: 16px; }
 .road-card header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
