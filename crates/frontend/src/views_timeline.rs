@@ -216,7 +216,7 @@ pub(crate) fn gantt_view(
         .join(" ");
     let today = iso_day_number(&today_iso()).unwrap_or(i64::MIN);
     let today_left = if (min_day..=max_day).contains(&today) {
-        Some(gantt_day_center_percent(today, min_day, range))
+        Some(gantt_span_left_percent(today, min_day, range))
     } else {
         None
     };
