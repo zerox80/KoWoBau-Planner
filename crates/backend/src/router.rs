@@ -16,6 +16,7 @@ pub(crate) fn build_router(state: AppState) -> Router {
         .route("/ws", get(ws_handler))
         .route("/tasks", get(list_tasks).post(create_task))
         .route("/tickets", get(list_tickets).post(create_ticket))
+        .route("/milestones", get(list_milestones).post(create_milestone))
         .route(
             "/tickets/{id}",
             get(get_ticket).patch(update_ticket).delete(delete_ticket),

@@ -4,7 +4,10 @@ pub(crate) fn overview_view(
     boot: BootstrapDto,
     lang: ReadSignal<Lang>,
     set_open_task: WriteSignal<Option<String>>,
+    set_data: WriteSignal<Option<BootstrapDto>>,
+    set_error: WriteSignal<Option<String>>,
 ) -> View {
+    let (show_create_milestone, set_show_create_milestone) = create_signal(false);
     let today_str = today_iso();
     let open = boot.tasks.iter().filter(|t| !t.status_is_done).count();
     let today = boot
@@ -40,6 +43,8 @@ pub(crate) fn overview_view(
         .cloned();
     let statuses_for_legend = boot.statuses.clone();
     let tasks_for_legend = boot.tasks.clone();
+    let milestones = boot.milestones.clone();
+    let boot_for_milestone_create = boot.clone();
 
     view! {
         <div class="overview-grid">
@@ -74,10 +79,23 @@ pub(crate) fn overview_view(
             </div>
             <div class="two-col">
                 <div class="panel">
-                    <h3>{move || if lang.get() == Lang::De { "Anstehende Meilensteine" } else { "Upcoming milestones" }}</h3>
-                    {boot.milestones.iter().map(|m| view! {
-                        <div class="milestone-row"><span>"◇"</span><strong>{title_for(m.title.clone(), m.title_en.clone(), lang.get())}</strong><small>{fmt_date(m.due_date.as_str(), lang.get())}</small></div>
-                    }).collect_view()}
+                    <div class="panel-head">
+                        <h3>{move || if lang.get() == Lang::De { "Anstehende Meilensteine" } else { "Upcoming milestones" }}</h3>
+                        <button class="icon-button small" title=move || if lang.get() == Lang::De { "Meilenstein erstellen" } else { "Create milestone" } on:click=move |_| set_show_create_milestone.set(true)>"+ "</button>
+                    </div>
+                    {if milestones.is_empty() {
+                        view! {
+                            <div class="empty-state compact">
+                                <strong>{move || if lang.get() == Lang::De { "Keine Meilensteine geplant" } else { "No milestones planned" }}</strong>
+                                <span>{move || if lang.get() == Lang::De { "Sobald Termine angelegt sind, erscheinen sie hier." } else { "Scheduled milestones will appear here." }}</span>
+                                <button class="btn primary" on:click=move |_| set_show_create_milestone.set(true)>{move || if lang.get() == Lang::De { "Meilenstein anlegen" } else { "Create milestone" }}</button>
+                            </div>
+                        }.into_view()
+                    } else {
+                        milestones.iter().map(|m| view! {
+                            <div class="milestone-row"><span>"◇"</span><strong>{title_for(m.title.clone(), m.title_en.clone(), lang.get())}</strong><small>{fmt_date(m.due_date.as_str(), lang.get())}</small></div>
+                        }).collect_view().into_view()
+                    }}
                 </div>
                 <div class="panel">
                     <h3>{move || if lang.get() == Lang::De { "Aktivität" } else { "Activity" }}</h3>
@@ -86,6 +104,11 @@ pub(crate) fn overview_view(
                     }).collect_view()}
                 </div>
             </div>
+            {move || if show_create_milestone.get() {
+                create_milestone_modal(boot_for_milestone_create.clone(), lang, set_show_create_milestone, set_data, set_error).into_view()
+            } else {
+                view! { <span/> }.into_view()
+            }}
         </div>
     }.into_view()
 }

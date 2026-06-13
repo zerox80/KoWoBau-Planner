@@ -239,3 +239,92 @@ pub(crate) fn create_ticket_modal(
         </div>
     }.into_view()
 }
+
+pub(crate) fn create_milestone_modal(
+    boot: BootstrapDto,
+    lang: ReadSignal<Lang>,
+    set_show_create_milestone: WriteSignal<bool>,
+    set_data: WriteSignal<Option<BootstrapDto>>,
+    set_error: WriteSignal<Option<String>>,
+) -> View {
+    let (title, set_title) = create_signal(String::new());
+    let (due_date, set_due_date) = create_signal(iso_in_days(7));
+    let (phase, set_phase) = create_signal("planung".to_string());
+    let (busy, set_busy) = create_signal(false);
+    let (local_error, set_local_error) = create_signal::<Option<String>>(None);
+    hold_realtime_while(|| true);
+
+    let create = move |_| {
+        if title.get_untracked().trim().is_empty() {
+            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
+                "Bitte gib zuerst einen Meilenstein-Titel ein.".into()
+            } else {
+                "Add a milestone title first.".into()
+            }));
+            return;
+        }
+        set_local_error.set(None);
+        set_busy.set(true);
+        let payload = CreateMilestoneRequest {
+            project_id: boot.project.id.clone(),
+            title: title.get_untracked(),
+            title_en: None,
+            due_date: due_date.get_untracked(),
+            phase: phase.get_untracked(),
+        };
+        spawn_local(async move {
+            match api_post::<_, MilestoneDto>("/api/milestones", &payload).await {
+                Ok(milestone) => {
+                    set_data.update(|data| {
+                        if let Some(data) = data {
+                            data.milestones.push(milestone);
+                            data.milestones.sort_by(|a, b| a.due_date.cmp(&b.due_date));
+                        }
+                    });
+                    set_show_create_milestone.set(false);
+                    set_error.set(None);
+                }
+                Err(err) => {
+                    set_local_error.set(Some(err.message.clone()));
+                    set_error.set(Some(err.message));
+                }
+            }
+            set_busy.set(false);
+        });
+    };
+
+    view! {
+        <div class="modal-backdrop">
+            <section class="create-modal">
+                <header>
+                    <strong>"◇"</strong>
+                    <h2>{move || if lang.get() == Lang::De { "Neuer Meilenstein" } else { "New milestone" }}</h2>
+                    <button on:click=move |_| set_show_create_milestone.set(false)>"x"</button>
+                </header>
+                <label class="modal-field title-field">
+                    <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
+                    <input class="title-input" placeholder=move || if lang.get() == Lang::De { "Was soll erreicht werden?" } else { "What should be reached?" } prop:value=title on:input=move |ev| {
+                        set_title.set(event_target_value(&ev));
+                        set_local_error.set(None);
+                    }/>
+                </label>
+                {move || local_error.get().map(|err| view! {
+                    <div class="modal-error">{err}</div>
+                })}
+                <div class="modal-meta milestone-meta">
+                    <input type="date" prop:value=due_date on:input=move |ev| set_due_date.set(event_target_value(&ev))/>
+                    <select on:change=move |ev| set_phase.set(select_value(&ev))>
+                        <option value="planung" selected>{move || if lang.get() == Lang::De { "Planung" } else { "Planning" }}</option>
+                        <option value="vergabe">{move || if lang.get() == Lang::De { "Vergabe" } else { "Tendering" }}</option>
+                        <option value="ausfuehrung">{move || if lang.get() == Lang::De { "Ausfuehrung" } else { "Execution" }}</option>
+                        <option value="abnahme">{move || if lang.get() == Lang::De { "Abnahme" } else { "Handover" }}</option>
+                    </select>
+                </div>
+                <footer>
+                    <button class="btn ghost" on:click=move |_| set_show_create_milestone.set(false)>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
+                    <button class="btn primary" disabled=move || busy.get() on:click=create>{move || if lang.get() == Lang::De { "Meilenstein erstellen" } else { "Create milestone" }}</button>
+                </footer>
+            </section>
+        </div>
+    }.into_view()
+}

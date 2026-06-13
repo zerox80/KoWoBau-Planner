@@ -198,7 +198,7 @@ pub(crate) fn main_view(
     set_error: WriteSignal<Option<String>>,
 ) -> View {
     match nav.get() {
-        NavView::Overview => overview_view(boot, lang, set_open_task),
+        NavView::Overview => overview_view(boot, lang, set_open_task, set_data, set_error),
         NavView::Board if board_mode.get() == "list" => list_view(boot, lang, set_open_task),
         NavView::Board => board_view(
             boot,

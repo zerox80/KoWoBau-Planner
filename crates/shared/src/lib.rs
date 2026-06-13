@@ -339,6 +339,16 @@ pub struct CreateTicketRequest {
     pub assignee_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMilestoneRequest {
+    pub project_id: String,
+    pub title: String,
+    #[serde(default)]
+    pub title_en: Option<String>,
+    pub due_date: String,
+    pub phase: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateTicketRequest {
     pub title: Option<String>,
