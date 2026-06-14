@@ -45,7 +45,7 @@ pub(crate) async fn create_ticket(
         assert_user_in_project(&mut *tx, project_id, assignee_id).await?;
     }
 
-    let key = next_ticket_key(&mut *tx, project_id).await?;
+    let key = next_ticket_key(&mut tx, project_id).await?;
 
     let ticket_id = Uuid::new_v4();
     sqlx::query(

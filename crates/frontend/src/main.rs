@@ -158,7 +158,7 @@ pub(crate) fn AppRoot() -> impl IntoView {
             {move || match data.get() {
                 Some(boot) => dashboard(
                     boot,
-                    AppSignals {
+                    &AppSignals {
                         lang,
                         set_lang,
                         nav,

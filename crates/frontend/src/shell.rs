@@ -24,7 +24,7 @@ pub(crate) struct AppSignals {
     pub(crate) set_error: WriteSignal<Option<String>>,
 }
 
-pub(crate) fn dashboard(boot: BootstrapDto, signals: AppSignals) -> View {
+pub(crate) fn dashboard(boot: BootstrapDto, signals: &AppSignals) -> View {
     let lang = signals.lang;
     let set_lang = signals.set_lang;
     let nav = signals.nav;
@@ -212,7 +212,7 @@ pub(crate) fn nav_button(
     }.into_view()
 }
 
-pub(crate) fn main_view(boot: BootstrapDto, signals: AppSignals) -> View {
+pub(crate) fn main_view(boot: BootstrapDto, signals: &AppSignals) -> View {
     let lang = signals.lang;
     let nav = signals.nav;
     let set_nav = signals.set_nav;

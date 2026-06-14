@@ -42,7 +42,7 @@ pub(crate) async fn create_task(
     assert_status_in_project(&state.db, project_id, status_id).await?;
 
     let mut tx = state.db.begin().await?;
-    let key = next_task_key(&mut *tx, project_id).await?;
+    let key = next_task_key(&mut tx, project_id).await?;
 
     let task_id = Uuid::new_v4();
     sqlx::query(

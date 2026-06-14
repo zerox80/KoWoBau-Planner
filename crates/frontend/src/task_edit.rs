@@ -14,14 +14,14 @@ pub(crate) struct TaskEditSnapshot {
 
 #[derive(Clone, Copy)]
 pub(crate) struct TaskEditSetters {
-    pub(crate) set_title: WriteSignal<String>,
-    pub(crate) set_description: WriteSignal<String>,
-    pub(crate) set_status: WriteSignal<String>,
-    pub(crate) set_priority: WriteSignal<Priority>,
-    pub(crate) set_due_date: WriteSignal<String>,
-    pub(crate) set_phase: WriteSignal<String>,
-    pub(crate) set_assignee: WriteSignal<String>,
-    pub(crate) set_recurrence: WriteSignal<Option<Recurrence>>,
+    pub(crate) title: WriteSignal<String>,
+    pub(crate) description: WriteSignal<String>,
+    pub(crate) status: WriteSignal<String>,
+    pub(crate) priority: WriteSignal<Priority>,
+    pub(crate) due_date: WriteSignal<String>,
+    pub(crate) phase: WriteSignal<String>,
+    pub(crate) assignee: WriteSignal<String>,
+    pub(crate) recurrence: WriteSignal<Option<Recurrence>>,
 }
 
 pub(crate) fn task_update_payload(edit: TaskEditSnapshot) -> UpdateTaskRequest {
@@ -47,12 +47,12 @@ pub(crate) fn task_update_payload(edit: TaskEditSnapshot) -> UpdateTaskRequest {
 }
 
 pub(crate) fn reset_task_edit(setters: TaskEditSetters, values: TaskEditSnapshot) {
-    setters.set_title.set(values.title);
-    setters.set_description.set(values.description);
-    setters.set_status.set(values.status_id);
-    setters.set_priority.set(values.priority);
-    setters.set_due_date.set(values.due_date);
-    setters.set_phase.set(values.phase);
-    setters.set_assignee.set(values.assignee_id);
-    setters.set_recurrence.set(values.recurrence);
+    setters.title.set(values.title);
+    setters.description.set(values.description);
+    setters.status.set(values.status_id);
+    setters.priority.set(values.priority);
+    setters.due_date.set(values.due_date);
+    setters.phase.set(values.phase);
+    setters.assignee.set(values.assignee_id);
+    setters.recurrence.set(values.recurrence);
 }

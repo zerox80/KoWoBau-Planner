@@ -436,14 +436,14 @@ pub(crate) fn task_detail(
                 <button class="btn ghost" on:click=move |_| {
                     reset_task_edit(
                         TaskEditSetters {
-                            set_title: set_title_edit,
-                            set_description: set_description_edit,
-                            set_status: set_status_edit,
-                            set_priority: set_priority_edit,
-                            set_due_date: set_due_date_edit,
-                            set_phase: set_phase_edit,
-                            set_assignee: set_assignee_edit,
-                            set_recurrence: set_recurrence_edit,
+                            title: set_title_edit,
+                            description: set_description_edit,
+                            status: set_status_edit,
+                            priority: set_priority_edit,
+                            due_date: set_due_date_edit,
+                            phase: set_phase_edit,
+                            assignee: set_assignee_edit,
+                            recurrence: set_recurrence_edit,
                         },
                         TaskEditSnapshot {
                             title: reset_title.clone(),
