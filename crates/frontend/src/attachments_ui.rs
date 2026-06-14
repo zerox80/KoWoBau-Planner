@@ -35,10 +35,7 @@ pub(crate) fn upload_attachments(
 }
 
 pub(crate) fn attachment_ext(file_name: &str) -> String {
-    file_name
-        .rsplit_once('.')
-        .map(|(_, ext)| ext.to_ascii_lowercase())
-        .unwrap_or_default()
+    file_extension_lowercase(file_name).unwrap_or_default()
 }
 
 /// Attachment chip plus an inline preview: images render directly, PDFs get

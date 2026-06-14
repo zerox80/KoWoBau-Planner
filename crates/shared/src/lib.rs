@@ -11,6 +11,28 @@ where
     Deserialize::deserialize(de).map(Some)
 }
 
+/// Initials used for avatars and generated workspace slugs.
+pub fn display_initials(name: &str) -> String {
+    let initials = name
+        .split_whitespace()
+        .filter_map(|part| part.chars().next())
+        .take(2)
+        .collect::<String>();
+    if initials.is_empty() {
+        "?".to_string()
+    } else {
+        initials.to_uppercase()
+    }
+}
+
+/// Lowercase extension without the leading dot, if a file name has one.
+pub fn file_extension_lowercase(file_name: &str) -> Option<String> {
+    file_name
+        .rsplit_once('.')
+        .filter(|(stem, ext)| !stem.is_empty() && !ext.is_empty())
+        .map(|(_, ext)| ext.to_ascii_lowercase())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {

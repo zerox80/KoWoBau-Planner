@@ -182,13 +182,6 @@ pub(crate) async fn delete_ticket(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn optional_uuid(value: Option<&str>) -> Result<Option<Uuid>, AppError> {
-    value
-        .filter(|value| !value.trim().is_empty())
-        .map(uuid_from_str)
-        .transpose()
-}
-
 async fn next_ticket_key(conn: &mut PgConnection, project_id: Uuid) -> Result<String, AppError> {
     // Serializes key generation per project so concurrent creates cannot collide.
     sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")

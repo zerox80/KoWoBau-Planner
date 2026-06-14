@@ -28,13 +28,7 @@ pub(crate) fn optimistic_move(
         .await
         {
             Ok(task) => {
-                set_data.update(|data| {
-                    if let Some(data) = data {
-                        if let Some(current) = data.tasks.iter_mut().find(|t| t.id == task.id) {
-                            *current = task;
-                        }
-                    }
-                });
+                replace_task(set_data, task);
                 set_error.set(None);
             }
             Err(err) => {
@@ -83,7 +77,10 @@ pub(crate) fn toggle_subtask(
         )
         .await
         {
-            Ok(task) => replace_task(set_data, task),
+            Ok(task) => {
+                replace_task(set_data, task);
+                set_error.set(None);
+            }
             Err(err) => {
                 set_error.set(Some(err.message));
             }
@@ -104,7 +101,10 @@ pub(crate) fn add_comment(
         )
         .await
         {
-            Ok(task) => replace_task(set_data, task),
+            Ok(task) => {
+                replace_task(set_data, task);
+                set_error.set(None);
+            }
             Err(err) => set_error.set(Some(err.message)),
         }
     });
@@ -123,8 +123,9 @@ pub(crate) fn read_notification(
         }
     });
     spawn_local(async move {
-        if let Err(err) = api_empty(&format!("/api/notifications/{id}/read")).await {
-            set_error.set(Some(err.message));
+        match api_empty(&format!("/api/notifications/{id}/read")).await {
+            Ok(()) => set_error.set(None),
+            Err(err) => set_error.set(Some(err.message)),
         }
     });
 }
@@ -141,8 +142,9 @@ pub(crate) fn read_all_notifications(
         }
     });
     spawn_local(async move {
-        if let Err(err) = api_empty(&read_all_notifications_url()).await {
-            set_error.set(Some(err.message));
+        match api_empty(&read_all_notifications_url()).await {
+            Ok(()) => set_error.set(None),
+            Err(err) => set_error.set(Some(err.message)),
         }
     });
 }

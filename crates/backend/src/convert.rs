@@ -134,6 +134,13 @@ pub(crate) fn uuid_from_str(value: &str) -> Result<Uuid, AppError> {
     Uuid::parse_str(value).map_err(|_| AppError::BadRequest("invalid id".into()))
 }
 
+pub(crate) fn optional_uuid(value: Option<&str>) -> Result<Option<Uuid>, AppError> {
+    value
+        .filter(|value| !value.trim().is_empty())
+        .map(uuid_from_str)
+        .transpose()
+}
+
 pub(crate) fn required_trimmed<'a>(
     value: &'a str,
     message: &'static str,
@@ -161,15 +168,7 @@ pub(crate) fn parse_optional_date(value: Option<&str>) -> Result<Option<NaiveDat
 }
 
 pub(crate) fn initials(name: &str) -> String {
-    let mut chars = name
-        .split_whitespace()
-        .filter_map(|part| part.chars().next())
-        .take(2)
-        .collect::<String>();
-    if chars.is_empty() {
-        chars = "?".to_string();
-    }
-    chars.to_uppercase()
+    display_initials(name)
 }
 
 pub(crate) fn relative_label(ts: DateTime<Utc>, lang: &str) -> String {
