@@ -22,6 +22,7 @@ pub(crate) fn calendar_view(
                 <button
                     class="cal-nav"
                     title=move || if lang.get() == Lang::De { "Voriger Monat" } else { "Previous month" }
+                    aria-label=move || if lang.get() == Lang::De { "Voriger Monat" } else { "Previous month" }
                     on:click=move |_| {
                         set_expanded.set(None);
                         set_cursor.update(|c| *c = prev_month(c.0, c.1));
@@ -36,6 +37,7 @@ pub(crate) fn calendar_view(
                 <button
                     class="cal-nav"
                     title=move || if lang.get() == Lang::De { "Nächster Monat" } else { "Next month" }
+                    aria-label=move || if lang.get() == Lang::De { "Nächster Monat" } else { "Next month" }
                     on:click=move |_| {
                         set_expanded.set(None);
                         set_cursor.update(|c| *c = next_month(c.0, c.1));
@@ -132,7 +134,11 @@ pub(crate) fn calendar_view(
                                 if milestone.done {
                                     cls.push_str(" done");
                                 }
-                                let aria = if lang_now == Lang::De { "Meilenstein, im Gantt öffnen" } else { "Milestone, open in Gantt" };
+                                let aria = if lang_now == Lang::De {
+                                    format!("Meilenstein {label}, im Gantt öffnen")
+                                } else {
+                                    format!("Milestone {label}, open in Gantt")
+                                };
                                 view! {
                                     <button class=cls title=label.clone() aria-label=aria on:click=move |_| set_nav.set(NavView::Gantt)>
                                         <b>"\u{25C7}"</b>
