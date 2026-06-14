@@ -185,15 +185,7 @@ pub(crate) fn first_name(name: &str) -> &str {
 }
 
 pub(crate) fn initials(name: &str) -> String {
-    let mut chars = name
-        .split_whitespace()
-        .filter_map(|part| part.chars().next())
-        .take(2)
-        .collect::<String>();
-    if chars.is_empty() {
-        chars = "?".into();
-    }
-    chars.to_uppercase()
+    display_initials(name)
 }
 
 /// Local current date as (year, month 1-12, day 1-31).

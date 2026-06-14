@@ -362,10 +362,7 @@ pub(crate) async fn delete_attachment(
 }
 
 pub(crate) fn inline_previewable(file_name: &str) -> bool {
-    FsPath::new(file_name)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase)
+    file_extension_lowercase(file_name)
         .is_some_and(|e| INLINE_PREVIEW_EXTENSIONS.contains(&e.as_str()))
 }
 
@@ -378,10 +375,7 @@ pub(crate) fn size_label(bytes: i64) -> String {
 }
 
 pub(crate) fn allowed_upload_extension(file_name: &str) -> bool {
-    FsPath::new(file_name)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase)
+    file_extension_lowercase(file_name)
         .is_some_and(|e| ALLOWED_UPLOAD_EXTENSIONS.contains(&e.as_str()))
 }
 
@@ -389,11 +383,7 @@ pub(crate) fn allowed_upload_extension(file_name: &str) -> bool {
 /// the file content must carry the matching magic number. Every other
 /// extension passes: those files are always served as downloads.
 pub(crate) fn magic_matches(file_name: &str, head: &[u8]) -> bool {
-    let Some(ext) = FsPath::new(file_name)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(str::to_ascii_lowercase)
-    else {
+    let Some(ext) = file_extension_lowercase(file_name) else {
         return true;
     };
     match ext.as_str() {

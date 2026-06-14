@@ -38,18 +38,19 @@ pub(crate) fn selected_workspace_id_from_url() -> Option<String> {
         .filter(|id| !id.trim().is_empty())
 }
 
-pub(crate) fn bootstrap_url() -> String {
+fn workspace_scoped_url(base: &str) -> String {
     selected_workspace_id_from_url().map_or_else(
-        || "/api/bootstrap".to_string(),
-        |id| format!("/api/bootstrap?workspace_id={id}"),
+        || base.to_string(),
+        |id| format!("{base}?workspace_id={id}"),
     )
 }
 
+pub(crate) fn bootstrap_url() -> String {
+    workspace_scoped_url("/api/bootstrap")
+}
+
 pub(crate) fn read_all_notifications_url() -> String {
-    selected_workspace_id_from_url().map_or_else(
-        || "/api/notifications/read-all".to_string(),
-        |id| format!("/api/notifications/read-all?workspace_id={id}"),
-    )
+    workspace_scoped_url("/api/notifications/read-all")
 }
 
 pub(crate) fn switch_workspace(workspace_id: &str) {
