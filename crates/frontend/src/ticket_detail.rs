@@ -40,11 +40,14 @@ pub(crate) fn ticket_detail(
     let ticket_id_for_save = ticket.id.clone();
     let save = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
-                "Bitte gib zuerst einen Tickettitel ein.".into()
-            } else {
-                "Add a ticket title first.".into()
-            }));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Tickettitel ein.",
+                        "Add a ticket title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -78,15 +81,12 @@ pub(crate) fn ticket_detail(
     let ticket_id_for_delete = ticket.id.clone();
     let ticket_title_for_delete = ticket.title.clone();
     let delete = move |_| {
-        let confirm_text = if lang.get_untracked() == Lang::De {
+        let confirm_text = if lang.get_untracked().is_de() {
             format!("{ticket_title_for_delete} wirklich loeschen?")
         } else {
             format!("Delete {ticket_title_for_delete}?")
         };
-        let confirmed = web_sys::window()
-            .and_then(|w| w.confirm_with_message(&confirm_text).ok())
-            .unwrap_or(false);
-        if !confirmed {
+        if !confirm(&confirm_text) {
             return;
         }
         let ticket_id = ticket_id_for_delete.clone();
@@ -115,7 +115,7 @@ pub(crate) fn ticket_detail(
                     <button on:click=move |_| set_open_ticket.set(None)>"x"</button>
                 </header>
                 <label class="modal-field title-field">
-                    <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
+                    <span>{move || lang.get().tr("Titel", "Title")}</span>
                     <input class="title-input" prop:value=title on:input=move |ev| {
                         set_title.set(event_target_value(&ev));
                         set_local_error.set(None);
@@ -125,25 +125,25 @@ pub(crate) fn ticket_detail(
                     <div class="modal-error">{err}</div>
                 })}
                 <label class="modal-field">
-                    <span>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</span>
+                    <span>{move || lang.get().tr("Beschreibung", "Description")}</span>
                     <textarea prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev)) disabled=!can_edit></textarea>
                 </label>
                 <div class="modal-meta ticket-meta">
-                    <input placeholder=move || if lang.get() == Lang::De { "Melder / Kontakt" } else { "Requester / contact" } prop:value=requester_name on:input=move |ev| set_requester_name.set(event_target_value(&ev)) disabled=!can_edit/>
+                    <input placeholder=move || lang.get().tr("Melder / Kontakt", "Requester / contact") prop:value=requester_name on:input=move |ev| set_requester_name.set(event_target_value(&ev)) disabled=!can_edit/>
                     <select on:change=move |ev| set_status.set(ticket_status_from_value(&select_value(&ev))) disabled=!can_edit>
-                        <option value="open" selected=current_status == TicketStatus::Open>{move || if lang.get() == Lang::De { "Offen" } else { "Open" }}</option>
-                        <option value="in_progress" selected=current_status == TicketStatus::InProgress>{move || if lang.get() == Lang::De { "In Arbeit" } else { "In progress" }}</option>
-                        <option value="resolved" selected=current_status == TicketStatus::Resolved>{move || if lang.get() == Lang::De { "Geloest" } else { "Resolved" }}</option>
-                        <option value="closed" selected=current_status == TicketStatus::Closed>{move || if lang.get() == Lang::De { "Geschlossen" } else { "Closed" }}</option>
+                        <option value="open" selected=current_status == TicketStatus::Open>{move || lang.get().tr("Offen", "Open")}</option>
+                        <option value="in_progress" selected=current_status == TicketStatus::InProgress>{move || lang.get().tr("In Arbeit", "In progress")}</option>
+                        <option value="resolved" selected=current_status == TicketStatus::Resolved>{move || lang.get().tr("Geloest", "Resolved")}</option>
+                        <option value="closed" selected=current_status == TicketStatus::Closed>{move || lang.get().tr("Geschlossen", "Closed")}</option>
                     </select>
                     <select on:change=move |ev| set_priority.set(priority_from_value(&select_value(&ev))) disabled=!can_edit>
-                        <option value="urgent" selected=current_priority == Priority::Urgent>{move || if lang.get() == Lang::De { "Dringend" } else { "Urgent" }}</option>
-                        <option value="high" selected=current_priority == Priority::High>{move || if lang.get() == Lang::De { "Hoch" } else { "High" }}</option>
-                        <option value="medium" selected=current_priority == Priority::Medium>{move || if lang.get() == Lang::De { "Mittel" } else { "Medium" }}</option>
-                        <option value="low" selected=current_priority == Priority::Low>{move || if lang.get() == Lang::De { "Niedrig" } else { "Low" }}</option>
+                        <option value="urgent" selected=current_priority == Priority::Urgent>{move || lang.get().tr("Dringend", "Urgent")}</option>
+                        <option value="high" selected=current_priority == Priority::High>{move || lang.get().tr("Hoch", "High")}</option>
+                        <option value="medium" selected=current_priority == Priority::Medium>{move || lang.get().tr("Mittel", "Medium")}</option>
+                        <option value="low" selected=current_priority == Priority::Low>{move || lang.get().tr("Niedrig", "Low")}</option>
                     </select>
                     <select on:change=move |ev| set_assignee_id.set(select_value(&ev)) disabled=!can_edit>
-                        <option value="" selected=current_assignee.is_empty()>{move || if lang.get() == Lang::De { "Nicht zugewiesen" } else { "Unassigned" }}</option>
+                        <option value="" selected=current_assignee.is_empty()>{move || lang.get().tr("Nicht zugewiesen", "Unassigned")}</option>
                         {boot.members.into_iter().map(|m| {
                             let selected = current_assignee == m.user_id;
                             view! { <option value=m.user_id selected=selected>{m.name}</option> }
@@ -153,15 +153,15 @@ pub(crate) fn ticket_detail(
                 <footer>
                     {if can_edit {
                         view! {
-                            <button class="danger-link danger-action" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
+                            <button class="danger-link danger-action" on:click=delete>{move || lang.get().tr("Loeschen", "Delete")}</button>
                         }.into_view()
                     } else {
                         empty_view()
                     }}
-                    <button class="btn ghost" on:click=move |_| set_open_ticket.set(None)>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
+                    <button class="btn ghost" on:click=move |_| set_open_ticket.set(None)>{move || lang.get().tr("Abbrechen", "Cancel")}</button>
                     {if can_edit {
                         view! {
-                            <button class="btn primary" disabled=move || busy.get() on:click=save>{move || if lang.get() == Lang::De { "Speichern" } else { "Save" }}</button>
+                            <button class="btn primary" disabled=move || busy.get() on:click=save>{move || lang.get().tr("Speichern", "Save")}</button>
                         }.into_view()
                     } else {
                         empty_view()

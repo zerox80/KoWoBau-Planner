@@ -94,12 +94,12 @@ pub(crate) fn dashboard(boot: BootstrapDto, signals: &AppSignals) -> View {
                 </div>
 
                 <nav class="side-nav">
-                    <span class="side-label">{move || if lang.get() == Lang::De { "Arbeitsbereich" } else { "Workspace" }}</span>
+                    <span class="side-label">{move || lang.get().tr("Arbeitsbereich", "Workspace")}</span>
                     {nav_button(NavView::Overview, nav, set_nav, lang, None)}
                     {nav_button(NavView::Board, nav, set_nav, lang, Some(boot.tasks.iter().filter(|t| !t.status_is_done).count()))}
                     {nav_button(NavView::Tickets, nav, set_nav, lang, Some(boot.tickets.iter().filter(|t| !matches!(t.status, TicketStatus::Resolved | TicketStatus::Closed)).count()))}
                     {nav_button(NavView::Calendar, nav, set_nav, lang, None)}
-                    <span class="side-label">{move || if lang.get() == Lang::De { "Planung" } else { "Planning" }}</span>
+                    <span class="side-label">{move || lang.get().tr("Planung", "Planning")}</span>
                     {nav_button(NavView::Gantt, nav, set_nav, lang, None)}
                     {nav_button(NavView::Roadmap, nav, set_nav, lang, None)}
                     {nav_button(NavView::Team, nav, set_nav, lang, None)}
@@ -119,8 +119,8 @@ pub(crate) fn dashboard(boot: BootstrapDto, signals: &AppSignals) -> View {
 
             <main class="main">
                 <header class="topbar">
-                    <div class="search">"⌕" <input placeholder=move || if lang.get() == Lang::De { "Suchen..." } else { "Search..." }/></div>
-                    <span class="demo-pill">{move || if lang.get() == Lang::De { "Demo-Vorschau" } else { "Demo preview" }}</span>
+                    <div class="search">"⌕" <input placeholder=move || lang.get().tr("Suchen...", "Search...")/></div>
+                    <span class="demo-pill">{move || lang.get().tr("Demo-Vorschau", "Demo preview")}</span>
                     <LangToggle lang set_lang/>
                     <span class="notif-wrap">
                         <button class="icon-button" on:click=move |_| set_show_notifications.update(|v| *v = !*v)>
@@ -165,7 +165,7 @@ pub(crate) fn dashboard(boot: BootstrapDto, signals: &AppSignals) -> View {
                         view! {
                             <div class="segmented">
                                 <button class:active=move || board_mode.get() == "board" on:click=move |_| set_board_mode.set("board".to_string())>"Board"</button>
-                                <button class:active=move || board_mode.get() == "list" on:click=move |_| set_board_mode.set("list".to_string())>{move || if lang.get() == Lang::De { "Liste" } else { "List" }}</button>
+                                <button class:active=move || board_mode.get() == "list" on:click=move |_| set_board_mode.set("list".to_string())>{move || lang.get().tr("Liste", "List")}</button>
                             </div>
                         }.into_view()
                     } else {
@@ -267,6 +267,14 @@ pub(crate) fn stat(icon: AppIcon, value: usize, label: &'static str, tone: &'sta
 /// Leptos still needs a node, so this stands in for the `else` of inline `if`s.
 pub(crate) fn empty_view() -> View {
     view! { <span/> }.into_view()
+}
+
+/// Native `window.confirm` dialog. Returns false when the browser has no
+/// window or blocks the prompt, so callers treat "no answer" as "cancel".
+pub(crate) fn confirm(message: &str) -> bool {
+    web_sys::window()
+        .and_then(|w| w.confirm_with_message(message).ok())
+        .unwrap_or(false)
 }
 
 pub(crate) fn logo() -> View {

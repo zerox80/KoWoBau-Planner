@@ -90,17 +90,17 @@ pub(crate) fn auth_shell(
                 <div class="hero-copy">
                     <span class="eyebrow">"OPEN SOURCE · RUST · WASM"</span>
                     <h1>"KoWoBau-Planner"</h1>
-                    <p>{move || if lang.get() == Lang::De {
+                    <p>{move || if lang.get().is_de() {
                         "Projektmanagement für Bau- und Modernisierungsteams: Aufgaben, Termine, Meilensteine und Teamverantwortung in einem schnellen Self-Hosting-Tool."
                     } else {
                         "Project management for construction and modernization teams: tasks, dates, milestones and ownership in one fast self-hosted tool."
                     }}</p>
                     <div class="hero-actions">
                         <button class="btn primary" on:click=demo_login disabled=move || busy.get()>
-                            {move || if lang.get() == Lang::De { "Demo öffnen" } else { "Open demo" }}
+                            {move || lang.get().tr("Demo öffnen", "Open demo")}
                         </button>
                         <button class="btn ghost" on:click=move |_| set_mode.set(AuthMode::Register)>
-                            {move || if lang.get() == Lang::De { "Arbeitsbereich anlegen" } else { "Create workspace" }}
+                            {move || lang.get().tr("Arbeitsbereich anlegen", "Create workspace")}
                         </button>
                     </div>
                 </div>
@@ -130,7 +130,7 @@ pub(crate) fn auth_shell(
                         (AuthMode::Register, Lang::De) => "Arbeitsbereich starten",
                         (AuthMode::Register, Lang::En) => "Start workspace",
                     }}</h2>
-                    <p>{move || if lang.get() == Lang::De {
+                    <p>{move || if lang.get().is_de() {
                         "Mit dem Demo-Konto kannst du sofort in den Planner springen."
                     } else {
                         "Use the demo account to jump straight into the planner."
@@ -144,7 +144,7 @@ pub(crate) fn auth_shell(
                             <input prop:value=name on:input=move |ev| set_name.set(event_target_value(&ev))/>
                         </label>
                         <label class="field">
-                            <span>{move || if lang.get() == Lang::De { "Einladungscode (optional)" } else { "Invite code (optional)" }}</span>
+                            <span>{move || lang.get().tr("Einladungscode (optional)", "Invite code (optional)")}</span>
                             <input prop:value=invite on:input=move |ev| set_invite.set(event_target_value(&ev))/>
                         </label>
                     }.into_view()
@@ -157,7 +157,7 @@ pub(crate) fn auth_shell(
                     <input type="email" prop:value=email on:input=move |ev| set_email.set(event_target_value(&ev))/>
                 </label>
                 <label class="field">
-                    <span>{move || if lang.get() == Lang::De { "Passwort" } else { "Password" }}</span>
+                    <span>{move || lang.get().tr("Passwort", "Password")}</span>
                     <input type="password" prop:value=password on:input=move |ev| set_password.set(event_target_value(&ev))/>
                 </label>
 
@@ -195,7 +195,7 @@ pub(crate) fn auth_shell(
 pub(crate) fn LangToggle(lang: ReadSignal<Lang>, set_lang: WriteSignal<Lang>) -> impl IntoView {
     view! {
         <div class="lang-toggle">
-            <button class:active=move || lang.get() == Lang::De on:click=move |_| set_lang.set(Lang::De)>"DE"</button>
+            <button class:active=move || lang.get().is_de() on:click=move |_| set_lang.set(Lang::De)>"DE"</button>
             <button class:active=move || lang.get() == Lang::En on:click=move |_| set_lang.set(Lang::En)>"EN"</button>
         </div>
     }

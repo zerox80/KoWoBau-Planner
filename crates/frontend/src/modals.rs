@@ -32,11 +32,14 @@ pub(crate) fn create_task_modal(
 
     let create = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
-                "Bitte gib zuerst einen Aufgabentitel ein.".into()
-            } else {
-                "Add a task title first.".into()
-            }));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Aufgabentitel ein.",
+                        "Add a task title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -82,12 +85,12 @@ pub(crate) fn create_task_modal(
             <section class="create-modal">
                 <header>
                     <strong>"+ "</strong>
-                    <h2>{move || if lang.get() == Lang::De { "Neue Aufgabe" } else { "New task" }}</h2>
+                    <h2>{move || lang.get().tr("Neue Aufgabe", "New task")}</h2>
                     <button on:click=move |_| set_show_create.set(false)>"×"</button>
                 </header>
                 <label class="modal-field title-field">
-                    <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
-                    <input class="title-input" placeholder=move || if lang.get() == Lang::De { "Woran wird gearbeitet?" } else { "What are we working on?" } prop:value=title on:input=move |ev| {
+                    <span>{move || lang.get().tr("Titel", "Title")}</span>
+                    <input class="title-input" placeholder=move || lang.get().tr("Woran wird gearbeitet?", "What are we working on?") prop:value=title on:input=move |ev| {
                         set_title.set(event_target_value(&ev));
                         set_local_error.set(None);
                     }/>
@@ -96,8 +99,8 @@ pub(crate) fn create_task_modal(
                     <div class="modal-error">{err}</div>
                 })}
                 <label class="modal-field">
-                    <span>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</span>
-                    <textarea placeholder=move || if lang.get() == Lang::De { "Beschreibung hinzufügen..." } else { "Add description..." } prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
+                    <span>{move || lang.get().tr("Beschreibung", "Description")}</span>
+                    <textarea placeholder=move || lang.get().tr("Beschreibung hinzufügen...", "Add description...") prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
                 </label>
                 <div class="modal-meta">
                     <select on:change=move |ev| set_assignee_id.set(select_value(&ev))>
@@ -114,18 +117,18 @@ pub(crate) fn create_task_modal(
                         {boot.statuses.into_iter().map(|s| { let label = status_name(&s, lang.get()).to_string(); view! { <option value=s.id>{label}</option> } }).collect_view()}
                     </select>
                     <select on:change=move |ev| set_phase.set(select_value(&ev))>
-                        <option value="planung">{move || if lang.get() == Lang::De { "Planung" } else { "Planning" }}</option>
-                        <option value="vergabe">{move || if lang.get() == Lang::De { "Vergabe" } else { "Tendering" }}</option>
-                        <option value="ausfuehrung" selected>{move || if lang.get() == Lang::De { "Ausführung" } else { "Execution" }}</option>
-                        <option value="abnahme">{move || if lang.get() == Lang::De { "Abnahme" } else { "Handover" }}</option>
+                        <option value="planung">{move || lang.get().tr("Planung", "Planning")}</option>
+                        <option value="vergabe">{move || lang.get().tr("Vergabe", "Tendering")}</option>
+                        <option value="ausfuehrung" selected>{move || lang.get().tr("Ausführung", "Execution")}</option>
+                        <option value="abnahme">{move || lang.get().tr("Abnahme", "Handover")}</option>
                     </select>
                     <select on:change=move |ev| set_recurrence.set(recurrence_from_value(&select_value(&ev)))>
                         {recurrence_options(None, lang)}
                     </select>
                 </div>
                 <footer>
-                    <button class="btn ghost" on:click=move |_| set_show_create.set(false)>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
-                    <button class="btn primary" disabled=move || busy.get() on:click=create>{move || if lang.get() == Lang::De { "Aufgabe erstellen" } else { "Create task" }}</button>
+                    <button class="btn ghost" on:click=move |_| set_show_create.set(false)>{move || lang.get().tr("Abbrechen", "Cancel")}</button>
+                    <button class="btn primary" disabled=move || busy.get() on:click=create>{move || lang.get().tr("Aufgabe erstellen", "Create task")}</button>
                 </footer>
             </section>
         </div>
@@ -151,11 +154,14 @@ pub(crate) fn create_ticket_modal(
 
     let create = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
-                "Bitte gib zuerst einen Tickettitel ein.".into()
-            } else {
-                "Add a ticket title first.".into()
-            }));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Tickettitel ein.",
+                        "Add a ticket title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -195,12 +201,12 @@ pub(crate) fn create_ticket_modal(
             <section class="create-modal">
                 <header>
                     <strong>"T"</strong>
-                    <h2>{move || if lang.get() == Lang::De { "Neues Ticket" } else { "New ticket" }}</h2>
+                    <h2>{move || lang.get().tr("Neues Ticket", "New ticket")}</h2>
                     <button on:click=move |_| set_show_create_ticket.set(false)>"x"</button>
                 </header>
                 <label class="modal-field title-field">
-                    <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
-                    <input class="title-input" placeholder=move || if lang.get() == Lang::De { "Was ist passiert?" } else { "What happened?" } prop:value=title on:input=move |ev| {
+                    <span>{move || lang.get().tr("Titel", "Title")}</span>
+                    <input class="title-input" placeholder=move || lang.get().tr("Was ist passiert?", "What happened?") prop:value=title on:input=move |ev| {
                         set_title.set(event_target_value(&ev));
                         set_local_error.set(None);
                     }/>
@@ -209,16 +215,16 @@ pub(crate) fn create_ticket_modal(
                     <div class="modal-error">{err}</div>
                 })}
                 <label class="modal-field">
-                    <span>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</span>
-                    <textarea placeholder=move || if lang.get() == Lang::De { "Details, Kontext, betroffene Wohnung..." } else { "Details, context, affected unit..." } prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
+                    <span>{move || lang.get().tr("Beschreibung", "Description")}</span>
+                    <textarea placeholder=move || lang.get().tr("Details, Kontext, betroffene Wohnung...", "Details, context, affected unit...") prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
                 </label>
                 <div class="modal-meta ticket-meta">
-                    <input placeholder=move || if lang.get() == Lang::De { "Melder / Kontakt" } else { "Requester / contact" } prop:value=requester_name on:input=move |ev| set_requester_name.set(event_target_value(&ev))/>
+                    <input placeholder=move || lang.get().tr("Melder / Kontakt", "Requester / contact") prop:value=requester_name on:input=move |ev| set_requester_name.set(event_target_value(&ev))/>
                     <select on:change=move |ev| set_status.set(ticket_status_from_value(&select_value(&ev)))>
-                        <option value="open" selected>{move || if lang.get() == Lang::De { "Offen" } else { "Open" }}</option>
-                        <option value="in_progress">{move || if lang.get() == Lang::De { "In Arbeit" } else { "In progress" }}</option>
-                        <option value="resolved">{move || if lang.get() == Lang::De { "Geloest" } else { "Resolved" }}</option>
-                        <option value="closed">{move || if lang.get() == Lang::De { "Geschlossen" } else { "Closed" }}</option>
+                        <option value="open" selected>{move || lang.get().tr("Offen", "Open")}</option>
+                        <option value="in_progress">{move || lang.get().tr("In Arbeit", "In progress")}</option>
+                        <option value="resolved">{move || lang.get().tr("Geloest", "Resolved")}</option>
+                        <option value="closed">{move || lang.get().tr("Geschlossen", "Closed")}</option>
                     </select>
                     <select on:change=move |ev| set_priority.set(priority_from_value(&select_value(&ev)))>
                         <option value="urgent">"Dringend"</option>
@@ -227,13 +233,13 @@ pub(crate) fn create_ticket_modal(
                         <option value="low">"Niedrig"</option>
                     </select>
                     <select on:change=move |ev| set_assignee_id.set(select_value(&ev))>
-                        <option value="">{move || if lang.get() == Lang::De { "Nicht zugewiesen" } else { "Unassigned" }}</option>
+                        <option value="">{move || lang.get().tr("Nicht zugewiesen", "Unassigned")}</option>
                         {boot.members.into_iter().map(|m| view! { <option value=m.user_id>{m.name}</option> }).collect_view()}
                     </select>
                 </div>
                 <footer>
-                    <button class="btn ghost" on:click=move |_| set_show_create_ticket.set(false)>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
-                    <button class="btn primary" disabled=move || busy.get() on:click=create>{move || if lang.get() == Lang::De { "Ticket erstellen" } else { "Create ticket" }}</button>
+                    <button class="btn ghost" on:click=move |_| set_show_create_ticket.set(false)>{move || lang.get().tr("Abbrechen", "Cancel")}</button>
+                    <button class="btn primary" disabled=move || busy.get() on:click=create>{move || lang.get().tr("Ticket erstellen", "Create ticket")}</button>
                 </footer>
             </section>
         </div>
@@ -256,11 +262,14 @@ pub(crate) fn create_milestone_modal(
 
     let create = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
-                "Bitte gib zuerst einen Meilenstein-Titel ein.".into()
-            } else {
-                "Add a milestone title first.".into()
-            }));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Meilenstein-Titel ein.",
+                        "Add a milestone title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -298,12 +307,12 @@ pub(crate) fn create_milestone_modal(
             <section class="create-modal">
                 <header>
                     <strong>"◇"</strong>
-                    <h2>{move || if lang.get() == Lang::De { "Neuer Meilenstein" } else { "New milestone" }}</h2>
+                    <h2>{move || lang.get().tr("Neuer Meilenstein", "New milestone")}</h2>
                     <button on:click=move |_| set_show_create_milestone.set(false)>"x"</button>
                 </header>
                 <label class="modal-field title-field">
-                    <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
-                    <input class="title-input" placeholder=move || if lang.get() == Lang::De { "Was soll erreicht werden?" } else { "What should be reached?" } prop:value=title on:input=move |ev| {
+                    <span>{move || lang.get().tr("Titel", "Title")}</span>
+                    <input class="title-input" placeholder=move || lang.get().tr("Was soll erreicht werden?", "What should be reached?") prop:value=title on:input=move |ev| {
                         set_title.set(event_target_value(&ev));
                         set_local_error.set(None);
                     }/>
@@ -314,15 +323,15 @@ pub(crate) fn create_milestone_modal(
                 <div class="modal-meta milestone-meta">
                     <input type="date" prop:value=due_date on:input=move |ev| set_due_date.set(event_target_value(&ev))/>
                     <select on:change=move |ev| set_phase.set(select_value(&ev))>
-                        <option value="planung" selected>{move || if lang.get() == Lang::De { "Planung" } else { "Planning" }}</option>
-                        <option value="vergabe">{move || if lang.get() == Lang::De { "Vergabe" } else { "Tendering" }}</option>
-                        <option value="ausfuehrung">{move || if lang.get() == Lang::De { "Ausfuehrung" } else { "Execution" }}</option>
-                        <option value="abnahme">{move || if lang.get() == Lang::De { "Abnahme" } else { "Handover" }}</option>
+                        <option value="planung" selected>{move || lang.get().tr("Planung", "Planning")}</option>
+                        <option value="vergabe">{move || lang.get().tr("Vergabe", "Tendering")}</option>
+                        <option value="ausfuehrung">{move || lang.get().tr("Ausfuehrung", "Execution")}</option>
+                        <option value="abnahme">{move || lang.get().tr("Abnahme", "Handover")}</option>
                     </select>
                 </div>
                 <footer>
-                    <button class="btn ghost" on:click=move |_| set_show_create_milestone.set(false)>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
-                    <button class="btn primary" disabled=move || busy.get() on:click=create>{move || if lang.get() == Lang::De { "Meilenstein erstellen" } else { "Create milestone" }}</button>
+                    <button class="btn ghost" on:click=move |_| set_show_create_milestone.set(false)>{move || lang.get().tr("Abbrechen", "Cancel")}</button>
+                    <button class="btn primary" disabled=move || busy.get() on:click=create>{move || lang.get().tr("Meilenstein erstellen", "Create milestone")}</button>
                 </footer>
             </section>
         </div>

@@ -58,18 +58,15 @@ pub(crate) fn attachment_view(
                 let file_name = file_name.clone();
                 view! {
                     <button class="danger-link" on:click=move |_| {
-                        let confirm_text = if lang.get_untracked() == Lang::De {
+                        let confirm_text = if lang.get_untracked().is_de() {
                             format!("Anhang {file_name} wirklich loeschen?")
                         } else {
                             format!("Delete attachment {file_name}?")
                         };
-                        let confirmed = web_sys::window()
-                            .and_then(|w| w.confirm_with_message(&confirm_text).ok())
-                            .unwrap_or(false);
-                        if confirmed {
+                        if confirm(&confirm_text) {
                             on_delete.call(attachment_id.clone());
                         }
-                    }>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
+                    }>{move || lang.get().tr("Loeschen", "Delete")}</button>
                 }
             })}
         }
@@ -100,7 +97,7 @@ pub(crate) fn attachment_view(
                 <div class="attachment">
                     {chip}
                     <button class="link-button" on:click=move |_| set_preview.update(|p| *p = !*p)>
-                        {move || match (preview.get(), lang.get() == Lang::De) {
+                        {move || match (preview.get(), lang.get().is_de()) {
                             (true, true) => "Vorschau ausblenden",
                             (true, false) => "Hide preview",
                             (false, true) => "Vorschau anzeigen",

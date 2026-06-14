@@ -42,17 +42,17 @@ pub(crate) fn task_detail_readonly(
             </header>
             <h2>{title}</h2>
             <div class="detail-meta">
-                <span><small>{move || if lang.get() == Lang::De { "Zuweisen" } else { "Assign" }}</small>{assignee_avatars(&assignees, &boot.members)}</span>
-                <span><small>{move || if lang.get() == Lang::De { "Fälligkeit" } else { "Due date" }}</small><b>{due}</b></span>
-                <span><small>{move || if lang.get() == Lang::De { "Priorität" } else { "Priority" }}</small><b>{priority}</b></span>
-                <span><small>{move || if lang.get() == Lang::De { "Projekt" } else { "Project" }}</small><b>{project_line}</b></span>
+                <span><small>{move || lang.get().tr("Zuweisen", "Assign")}</small>{assignee_avatars(&assignees, &boot.members)}</span>
+                <span><small>{move || lang.get().tr("Fälligkeit", "Due date")}</small><b>{due}</b></span>
+                <span><small>{move || lang.get().tr("Priorität", "Priority")}</small><b>{priority}</b></span>
+                <span><small>{move || lang.get().tr("Projekt", "Project")}</small><b>{project_line}</b></span>
             </div>
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</h3>
+                <h3>{move || lang.get().tr("Beschreibung", "Description")}</h3>
                 <p>{description}</p>
             </section>
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Unteraufgaben" } else { "Subtasks" }}</h3>
+                <h3>{move || lang.get().tr("Unteraufgaben", "Subtasks")}</h3>
                 <div class="progress-line"><i style=format!("width:{pct}%")></i></div>
                 {subtasks.into_iter().map(|sub| {
                     let task_id = task.id.clone();
@@ -74,19 +74,19 @@ pub(crate) fn task_detail_readonly(
                 }).collect_view()}
             </section>
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Anhänge" } else { "Attachments" }}</h3>
+                <h3>{move || lang.get().tr("Anhänge", "Attachments")}</h3>
                 <div class="chips">
                     {attachments.into_iter().map(|a| view! { <a class="file-chip" href=format!("/api/attachments/{}", a.id) download>"Datei "{a.file_name}<small>{a.size_label}</small></a> }).collect_view()}
                 </div>
             </section>
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Kommentare" } else { "Comments" }}</h3>
+                <h3>{move || lang.get().tr("Kommentare", "Comments")}</h3>
                 {comments.into_iter().map(|c| {
-                    let created = if lang.get() == Lang::De { c.created_label_de } else { c.created_label_en };
+                    let created = if lang.get().is_de() { c.created_label_de } else { c.created_label_en };
                     view! { <div class="comment"><span class="avatar tiny">{c.author_initials}</span><p><strong>{c.author_name}</strong><br/>{c.body}</p><small>{created}</small></div> }
                 }).collect_view()}
                 <div class="comment-box">
-                    <input placeholder=move || if lang.get() == Lang::De { "Kommentar schreiben..." } else { "Write a comment..." } prop:value=comment on:input=move |ev| set_comment.set(event_target_value(&ev))/>
+                    <input placeholder=move || lang.get().tr("Kommentar schreiben...", "Write a comment...") prop:value=comment on:input=move |ev| set_comment.set(event_target_value(&ev))/>
                     <button on:click=move |_| {
                         let body = comment.get_untracked();
                         if !body.trim().is_empty() {
@@ -110,8 +110,8 @@ pub(crate) fn notifications_panel(
     view! {
         <div class="notifications">
             <header>
-                <h3>{move || if lang.get() == Lang::De { "Benachrichtigungen" } else { "Notifications" }}</h3>
-                <button on:click=move |_| read_all_notifications(set_data, set_error)>{move || if lang.get() == Lang::De { "Alle als gelesen markieren" } else { "Mark all read" }}</button>
+                <h3>{move || lang.get().tr("Benachrichtigungen", "Notifications")}</h3>
+                <button on:click=move |_| read_all_notifications(set_data, set_error)>{move || lang.get().tr("Alle als gelesen markieren", "Mark all read")}</button>
             </header>
             {notifications.into_iter().map(|n| {
                 let id = n.id.clone();
@@ -119,7 +119,7 @@ pub(crate) fn notifications_panel(
                 let actor_initials = n.actor_initials.clone().unwrap_or_else(|| "•".into());
                 let actor_name = n.actor_name.clone().unwrap_or_else(|| "System".into());
                 let text = notif_text(&n, lang.get());
-                let created = if lang.get() == Lang::De { n.created_label_de.clone() } else { n.created_label_en.clone() };
+                let created = if lang.get().is_de() { n.created_label_de.clone() } else { n.created_label_en.clone() };
                 let related_title = n.task_id.as_ref().and_then(|id| tasks.iter().find(|t| &t.id == id)).map(|t| task_title(t, lang.get())).unwrap_or_default();
                 view! {
                     <button class="notif-row" class:unread=unread on:click=move |_| {
@@ -167,7 +167,7 @@ pub(crate) fn task_card(
             <div class="task-tags">
                 <span class=tag_class>{tag}</span>
                 {recurring.then(|| view! {
-                    <span class="recur-mark" title=move || if lang.get() == Lang::De { "Wiederkehrende Aufgabe" } else { "Recurring task" }>"↻"</span>
+                    <span class="recur-mark" title=move || lang.get().tr("Wiederkehrende Aufgabe", "Recurring task")>"↻"</span>
                 })}
                 <b class=prio_class></b>
             </div>

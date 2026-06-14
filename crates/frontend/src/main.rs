@@ -12,6 +12,22 @@ pub(crate) enum Lang {
     En,
 }
 
+impl Lang {
+    /// True for German, the default UI language.
+    pub(crate) fn is_de(self) -> bool {
+        matches!(self, Self::De)
+    }
+
+    /// Picks the German or English variant of a static UI string.
+    pub(crate) fn tr(self, de: &'static str, en: &'static str) -> &'static str {
+        if self.is_de() {
+            de
+        } else {
+            en
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NavView {
     Overview,

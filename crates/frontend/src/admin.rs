@@ -20,7 +20,7 @@ pub(crate) fn admin_view(
     let latest_activity = boot.audit_events.first().map_or_else(
         || "-".into(),
         |a| {
-            if lang.get_untracked() == Lang::De {
+            if lang.get_untracked().is_de() {
                 a.created_label_de.clone()
             } else {
                 a.created_label_en.clone()
@@ -49,11 +49,11 @@ pub(crate) fn admin_view(
         }
         let email = invite_email.get_untracked();
         if email.trim().is_empty() {
-            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
-                "Bitte gib eine E-Mail ein.".into()
-            } else {
-                "Enter an email first.".into()
-            }));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr("Bitte gib eine E-Mail ein.", "Enter an email first.")
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -78,11 +78,14 @@ pub(crate) fn admin_view(
                             Ok(next) => {
                                 set_data.set(Some(next));
                                 set_invite_email.set(String::new());
-                                set_invite_result.set(Some(if lang.get_untracked() == Lang::De {
-                                    "Bestehender User wurde direkt hinzugefuegt.".into()
-                                } else {
-                                    "Existing user was added directly.".into()
-                                }));
+                                set_invite_result.set(Some(
+                                    lang.get_untracked()
+                                        .tr(
+                                            "Bestehender User wurde direkt hinzugefuegt.",
+                                            "Existing user was added directly.",
+                                        )
+                                        .into(),
+                                ));
                             }
                             Err(err) => set_error.set(Some(err.message)),
                         }
@@ -102,20 +105,20 @@ pub(crate) fn admin_view(
 
             <section class="panel admin-toolbar">
                 <div>
-                    <h3>{move || if lang.get() == Lang::De { "Verwaltung" } else { "Management" }}</h3>
-                    <p class="muted">{move || if lang.get() == Lang::De { "Mitglieder, Workspace-Accounts und Rollen durchsuchen." } else { "Search members, workspace accounts and roles." }}</p>
+                    <h3>{move || lang.get().tr("Verwaltung", "Management")}</h3>
+                    <p class="muted">{move || lang.get().tr("Mitglieder, Workspace-Accounts und Rollen durchsuchen.", "Search members, workspace accounts and roles.")}</p>
                 </div>
                 <label class="admin-search">
                     <span>"⌕"</span>
-                    <input placeholder=move || if lang.get() == Lang::De { "Name oder E-Mail suchen..." } else { "Search name or email..." } prop:value=search on:input=move |ev| set_search.set(event_target_value(&ev))/>
+                    <input placeholder=move || lang.get().tr("Name oder E-Mail suchen...", "Search name or email...") prop:value=search on:input=move |ev| set_search.set(event_target_value(&ev))/>
                 </label>
                 <div class="admin-filters">
                     <select on:change=move |ev| set_member_role_filter.set(select_value(&ev))>
-                        <option value="all">{move || if lang.get() == Lang::De { "Alle Mitglieder" } else { "All members" }}</option>
+                        <option value="all">{move || lang.get().tr("Alle Mitglieder", "All members")}</option>
                         {role_filter_options(lang)}
                     </select>
                     <select on:change=move |ev| set_account_role_filter.set(select_value(&ev))>
-                        <option value="all">{move || if lang.get() == Lang::De { "Alle Workspace-Accounts" } else { "All workspace accounts" }}</option>
+                        <option value="all">{move || lang.get().tr("Alle Workspace-Accounts", "All workspace accounts")}</option>
                         {role_filter_options(lang)}
                     </select>
                 </div>
@@ -124,7 +127,7 @@ pub(crate) fn admin_view(
             <div class="admin-layout">
                 <section class="panel admin-members-panel">
                     <div class="panel-head">
-                        <h3>{move || if lang.get() == Lang::De { "Mitglieder" } else { "Members" }}</h3>
+                        <h3>{move || lang.get().tr("Mitglieder", "Members")}</h3>
                         <span class="admin-count">{member_count}</span>
                     </div>
                     {move || {
@@ -156,9 +159,9 @@ pub(crate) fn admin_view(
                                         </span>
                                         <span class="admin-workload">
                                             <b>{m.open_tasks}</b>
-                                            <small>{move || if lang.get() == Lang::De { "offen" } else { "open" }}</small>
+                                            <small>{move || lang.get().tr("offen", "open")}</small>
                                             <b>{m.done_tasks}</b>
-                                            <small>{move || if lang.get() == Lang::De { "fertig" } else { "done" }}</small>
+                                            <small>{move || lang.get().tr("fertig", "done")}</small>
                                         </span>
                                         <span>
                                             {if can_admin && can_change_owner_target {
@@ -173,8 +176,8 @@ pub(crate) fn admin_view(
                                                     }>
                                                         <option value="owner" selected=current_role == Role::Owner disabled=!can_owner>"Owner"</option>
                                                         <option value="admin" selected=current_role == Role::Admin>"Admin"</option>
-                                                        <option value="member" selected=current_role == Role::Member>{move || if lang.get() == Lang::De { "Mitglied" } else { "Member" }}</option>
-                                                        <option value="viewer" selected=current_role == Role::Viewer>{move || if lang.get() == Lang::De { "Betrachter" } else { "Viewer" }}</option>
+                                                        <option value="member" selected=current_role == Role::Member>{move || lang.get().tr("Mitglied", "Member")}</option>
+                                                        <option value="viewer" selected=current_role == Role::Viewer>{move || lang.get().tr("Betrachter", "Viewer")}</option>
                                                     </select>
                                                 }.into_view()
                                             } else {
@@ -186,7 +189,7 @@ pub(crate) fn admin_view(
                                                 view! {
                                                     <button class="danger-link" title=format!("Remove {member_name}") on:click=move |_| {
                                                         remove_member(remove_id.clone(), member_name_for_remove.clone(), lang, set_data, set_error);
-                                                    }>{move || if lang.get() == Lang::De { "Entfernen" } else { "Remove" }}</button>
+                                                    }>{move || lang.get().tr("Entfernen", "Remove")}</button>
                                                 }.into_view()
                                             } else {
                                                 view! { <span class="muted">"-"</span> }.into_view()
@@ -201,28 +204,28 @@ pub(crate) fn admin_view(
 
                 <aside class="admin-side">
                     <section class="panel">
-                        <h3>{move || if lang.get() == Lang::De { "Einladen" } else { "Invite" }}</h3>
+                        <h3>{move || lang.get().tr("Einladen", "Invite")}</h3>
                         {if can_admin {
                             view! {
                                 <div class="invite-card">
                                     <input type="email" placeholder="name@example.com" prop:value=invite_email on:input=move |ev| set_invite_email.set(event_target_value(&ev))/>
                                     <select on:change=move |ev| set_invite_role.set(role_from_value(&select_value(&ev)))>
                                         <option value="admin">"Admin"</option>
-                                        <option value="member" selected>{move || if lang.get() == Lang::De { "Mitglied" } else { "Member" }}</option>
-                                        <option value="viewer">{move || if lang.get() == Lang::De { "Betrachter" } else { "Viewer" }}</option>
+                                        <option value="member" selected>{move || lang.get().tr("Mitglied", "Member")}</option>
+                                        <option value="viewer">{move || lang.get().tr("Betrachter", "Viewer")}</option>
                                     </select>
-                                    <button class="btn primary" on:click=invite>{move || if lang.get() == Lang::De { "Einladen" } else { "Invite" }}</button>
+                                    <button class="btn primary" on:click=invite>{move || lang.get().tr("Einladen", "Invite")}</button>
                                 </div>
                                 {move || local_error.get().map(|err| view! { <div class="error-line">{err}</div> })}
                                 {move || invite_result.get().map(|text| view! { <div class="invite-result">{text}</div> })}
                             }.into_view()
                         } else {
-                            view! { <p class="muted">{move || if lang.get() == Lang::De { "Nur Admins koennen Mitglieder verwalten." } else { "Only admins can manage members." }}</p> }.into_view()
+                            view! { <p class="muted">{move || lang.get().tr("Nur Admins koennen Mitglieder verwalten.", "Only admins can manage members.")}</p> }.into_view()
                         }}
                     </section>
 
                     <section class="panel">
-                        <h3>{move || if lang.get() == Lang::De { "System & Hosting" } else { "System & hosting" }}</h3>
+                        <h3>{move || lang.get().tr("System & Hosting", "System & hosting")}</h3>
                         <div class="sys-grid compact">
                             <span><small>"Version"</small><strong>"0.1.0"</strong></span>
                             <span><small>"Runtime"</small><strong>"Rust / Axum"</strong></span>
@@ -235,7 +238,7 @@ pub(crate) fn admin_view(
 
             <section class="panel admin-accounts-panel">
                 <div class="panel-head">
-                    <h3>{move || if lang.get() == Lang::De { "Workspace-Accounts" } else { "Workspace accounts" }}</h3>
+                    <h3>{move || lang.get().tr("Workspace-Accounts", "Workspace accounts")}</h3>
                     <span class="admin-count">{registered_count}</span>
                 </div>
                 {if can_admin {
@@ -261,7 +264,7 @@ pub(crate) fn admin_view(
                                     let is_member = user.membership_id.is_some();
                                     let (add_role, set_add_role) = create_signal(Role::Member);
                                     let can_change_account_owner = can_owner || current_account_role != Some(Role::Owner);
-                                    let created = if lang.get() == Lang::De { user.created_label_de.clone() } else { user.created_label_en.clone() };
+                                    let created = if lang.get().is_de() { user.created_label_de.clone() } else { user.created_label_en.clone() };
                                     view! {
                                         <div class="registered-row">
                                             <span class="avatar tiny">{user.initials.clone()}</span>
@@ -280,8 +283,8 @@ pub(crate) fn admin_view(
                                                             }>
                                                                 <option value="owner" selected=current_account_role == Some(Role::Owner) disabled=!can_owner>"Owner"</option>
                                                                 <option value="admin" selected=current_account_role == Some(Role::Admin)>"Admin"</option>
-                                                                <option value="member" selected=current_account_role == Some(Role::Member)>{move || if lang.get() == Lang::De { "Mitglied" } else { "Member" }}</option>
-                                                                <option value="viewer" selected=current_account_role == Some(Role::Viewer)>{move || if lang.get() == Lang::De { "Betrachter" } else { "Viewer" }}</option>
+                                                                <option value="member" selected=current_account_role == Some(Role::Member)>{move || lang.get().tr("Mitglied", "Member")}</option>
+                                                                <option value="viewer" selected=current_account_role == Some(Role::Viewer)>{move || lang.get().tr("Betrachter", "Viewer")}</option>
                                                             </select>
                                                         }.into_view()
                                                     } else {
@@ -291,8 +294,8 @@ pub(crate) fn admin_view(
                                                     view! {
                                                         <select class="role-select" on:change=move |ev| set_add_role.set(role_from_value(&select_value(&ev)))>
                                                             <option value="admin">"Admin"</option>
-                                                            <option value="member" selected>{move || if lang.get() == Lang::De { "Mitglied" } else { "Member" }}</option>
-                                                            <option value="viewer">{move || if lang.get() == Lang::De { "Betrachter" } else { "Viewer" }}</option>
+                                                            <option value="member" selected>{move || lang.get().tr("Mitglied", "Member")}</option>
+                                                            <option value="viewer">{move || lang.get().tr("Betrachter", "Viewer")}</option>
                                                         </select>
                                                     }.into_view()
                                                 }}
@@ -300,7 +303,7 @@ pub(crate) fn admin_view(
                                             <small>{created}</small>
                                             <span class="admin-actions">
                                                 {if is_member {
-                                                    view! { <b class="role-pill good">{move || if lang.get() == Lang::De { "Im Workspace" } else { "In workspace" }}</b> }.into_view()
+                                                    view! { <b class="role-pill good">{move || lang.get().tr("Im Workspace", "In workspace")}</b> }.into_view()
                                                 } else {
                                                     view! {
                                                         <button class="link-button" on:click=move |_| {
@@ -312,7 +315,7 @@ pub(crate) fn admin_view(
                                                                 set_data,
                                                                 set_error,
                                                             );
-                                                        }>{move || if lang.get() == Lang::De { "Hinzufuegen" } else { "Add" }}</button>
+                                                        }>{move || lang.get().tr("Hinzufuegen", "Add")}</button>
                                                     }.into_view()
                                                 }}
                                             </span>
@@ -323,13 +326,13 @@ pub(crate) fn admin_view(
                         }}
                     }.into_view()
                 } else {
-                    view! { <p class="muted">{move || if lang.get() == Lang::De { "Nur Admins sehen registrierte Accounts." } else { "Only admins can view registered accounts." }}</p> }.into_view()
+                    view! { <p class="muted">{move || lang.get().tr("Nur Admins sehen registrierte Accounts.", "Only admins can view registered accounts.")}</p> }.into_view()
                 }}
             </section>
 
             <section class="panel admin-audit-panel">
                 <div class="panel-head">
-                    <h3>{move || if lang.get() == Lang::De { "Audit-Log" } else { "Audit log" }}</h3>
+                    <h3>{move || lang.get().tr("Audit-Log", "Audit log")}</h3>
                     <span class="admin-count">{audit_events.len()}</span>
                 </div>
                 <div class="audit-list">
@@ -337,7 +340,7 @@ pub(crate) fn admin_view(
                         <div class="activity-row">
                             <span>{a.actor_name.clone().unwrap_or_else(|| "System".into())}</span>
                             <strong>{a.action.clone()}</strong>
-                            <small>{if lang.get() == Lang::De { a.created_label_de.clone() } else { a.created_label_en.clone() }}</small>
+                            <small>{if lang.get().is_de() { a.created_label_de.clone() } else { a.created_label_en.clone() }}</small>
                         </div>
                     }).collect_view()}
                 </div>
@@ -356,7 +359,7 @@ fn admin_metric(
 ) -> View {
     view! {
         <article class=format!("admin-metric {tone}")>
-            <small>{move || if lang.get() == Lang::De { label_de } else { label_en }}</small>
+            <small>{move || if lang.get().is_de() { label_de } else { label_en }}</small>
             <strong>{value}</strong>
             <span>{detail}</span>
         </article>
@@ -373,10 +376,10 @@ fn admin_summary(
 ) -> View {
     view! {
         <section class="admin-summary">
-            {admin_metric("Mitglieder", "Members", member_count.to_string(), if lang.get() == Lang::De { "aktive Workspace-Zugaenge" } else { "active workspace access" }, "cool", lang)}
-            {admin_metric("Owner/Admins", "Owners/admins", admin_count.to_string(), if lang.get() == Lang::De { "koennen verwalten" } else { "can manage" }, "accent", lang)}
-            {admin_metric("Accounts", "Accounts", registered_count.to_string(), if lang.get() == Lang::De { "registriert" } else { "registered" }, "good", lang)}
-            {admin_metric("Letzte Aktivitaet", "Latest activity", latest_activity, if lang.get() == Lang::De { "Audit-Log" } else { "audit log" }, "warm", lang)}
+            {admin_metric("Mitglieder", "Members", member_count.to_string(), lang.get().tr("aktive Workspace-Zugaenge", "active workspace access"), "cool", lang)}
+            {admin_metric("Owner/Admins", "Owners/admins", admin_count.to_string(), lang.get().tr("koennen verwalten", "can manage"), "accent", lang)}
+            {admin_metric("Accounts", "Accounts", registered_count.to_string(), lang.get().tr("registriert", "registered"), "good", lang)}
+            {admin_metric("Letzte Aktivitaet", "Latest activity", latest_activity, lang.get().tr("Audit-Log", "audit log"), "warm", lang)}
         </section>
     }
     .into_view()
@@ -392,7 +395,7 @@ fn role_filter_options(lang: ReadSignal<Lang>) -> View {
     .into_iter()
     .map(|(value, de, en)| {
         view! {
-            <option value=value>{move || if lang.get() == Lang::De { de } else { en }}</option>
+            <option value=value>{move || if lang.get().is_de() { de } else { en }}</option>
         }
     })
     .collect_view()
@@ -417,7 +420,7 @@ fn role_filter_matches(filter: &str, role: Option<&Role>) -> bool {
 fn admin_empty(lang: ReadSignal<Lang>, de: &'static str, en: &'static str) -> View {
     view! {
         <div class="empty-state compact">
-            <strong>{move || if lang.get() == Lang::De { de } else { en }}</strong>
+            <strong>{move || if lang.get().is_de() { de } else { en }}</strong>
         </div>
     }
     .into_view()
