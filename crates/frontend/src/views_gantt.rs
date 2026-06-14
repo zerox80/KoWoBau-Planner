@@ -39,8 +39,8 @@ pub(crate) fn gantt_view(
         return view! {
             <div class="gantt-panel">
                 <div class="empty-state compact">
-                    <strong>{move || if lang.get() == Lang::De { "Keine Termine geplant" } else { "No scheduled items" }}</strong>
-                    <span>{move || if lang.get() == Lang::De { "Aufgaben mit Start- oder Fälligkeitsdatum erscheinen hier." } else { "Tasks with a start or due date will appear here." }}</span>
+                    <strong>{move || lang.get().tr("Keine Termine geplant", "No scheduled items")}</strong>
+                    <span>{move || lang.get().tr("Aufgaben mit Start- oder Fälligkeitsdatum erscheinen hier.", "Tasks with a start or due date will appear here.")}</span>
                 </div>
             </div>
         }.into_view();
@@ -87,14 +87,14 @@ pub(crate) fn gantt_view(
                     <span>
                         {task_count}
                         " "
-                        {move || if lang.get() == Lang::De { "Aufgaben" } else { "tasks" }}
+                        {move || lang.get().tr("Aufgaben", "tasks")}
                         " · "
                         {milestone_count}
                         " "
-                        {move || if lang.get() == Lang::De { "Meilensteine" } else { "milestones" }}
+                        {move || lang.get().tr("Meilensteine", "milestones")}
                     </span>
                 </div>
-                <span class="gantt-hint">{move || if lang.get() == Lang::De { "Balken anklicken zum Öffnen" } else { "Click bars to open" }}</span>
+                <span class="gantt-hint">{move || lang.get().tr("Balken anklicken zum Öffnen", "Click bars to open")}</span>
             </div>
             <div class="gantt-scroll" style=format!("--gantt-range:{range};min-width:{scroll_min_width}px")>
                 <div class="gantt-months" style=format!("grid-template-columns:{GANTT_LABEL_WIDTH}px {chart_columns}")>
@@ -107,7 +107,7 @@ pub(crate) fn gantt_view(
                     </div>
                 </div>
                 <div class="gantt-scale" style=format!("grid-template-columns:{GANTT_LABEL_WIDTH}px {day_columns}")>
-                    <span>{move || if lang.get() == Lang::De { "Zeitachse" } else { "Timeline" }}</span>
+                    <span>{move || lang.get().tr("Zeitachse", "Timeline")}</span>
                     {(0..range).map(|i| {
                         let day = min_day + i as i64;
                         let (_, _, d) = civil_from_days(day);
@@ -123,7 +123,7 @@ pub(crate) fn gantt_view(
                     }).collect_view()}
                 </div>
                 <div class="gantt-milestones" style=format!("grid-template-columns:{GANTT_LABEL_WIDTH}px {chart_columns}")>
-                    <span class="gantt-lane-label">{move || if lang.get() == Lang::De { "Meilensteine" } else { "Milestones" }}</span>
+                    <span class="gantt-lane-label">{move || lang.get().tr("Meilensteine", "Milestones")}</span>
                     <div class="gantt-track">
                         {today_left.map(|left| view! { <span class="gantt-today" style=format!("left:{left:.4}%")></span> })}
                         {milestones.into_iter().map(|scheduled| {
@@ -160,7 +160,7 @@ pub(crate) fn gantt_view(
                     let color = status_color(&statuses, &task.status_id);
                     let status_label = statuses.iter().find(|s| s.id == task.status_id).map(|s| status_name(s, lang.get()).to_string()).unwrap_or_default();
                     let date_label = task.due_date.as_deref().map_or_else(
-                        || if lang.get() == Lang::De { "ohne Fälligkeitsdatum".into() } else { "no due date".into() },
+                        || if lang.get().is_de() { "ohne Fälligkeitsdatum".into() } else { "no due date".into() },
                         |date| fmt_date(date, lang.get()),
                     );
                     let bar_class = if duration_days <= 1 { "gantt-bar compact" } else { "gantt-bar" };
@@ -178,7 +178,7 @@ pub(crate) fn gantt_view(
                                     <em>{date_label}</em>
                                 </span>
                                 {if dep_count > 0 {
-                                    view! { <small title=move || if lang.get() == Lang::De { "Hat Abhängigkeiten" } else { "Has dependencies" }>{dep_count}</small> }.into_view()
+                                    view! { <small title=move || lang.get().tr("Hat Abhängigkeiten", "Has dependencies")>{dep_count}</small> }.into_view()
                                 } else {
                                     ().into_view()
                                 }}
@@ -273,12 +273,12 @@ pub(crate) fn gantt_month_segments(min_day: i64, range: usize) -> Vec<GanttMonth
 
 fn gantt_day_label(day: i64, lang: Lang) -> String {
     let (year, month, date) = civil_from_days(day);
-    let month_label = if lang == Lang::De {
+    let month_label = if lang.is_de() {
         MONTHS_DE[(month - 1) as usize]
     } else {
         MONTHS_EN[(month - 1) as usize]
     };
-    if lang == Lang::De {
+    if lang.is_de() {
         format!("{date}. {month_label} {year}")
     } else {
         format!("{month_label} {date}, {year}")
@@ -286,7 +286,7 @@ fn gantt_day_label(day: i64, lang: Lang) -> String {
 }
 
 fn gantt_month_label(year: i32, month: u32, lang: Lang) -> String {
-    let month_label = if lang == Lang::De {
+    let month_label = if lang.is_de() {
         MONTHS_DE_FULL[(month - 1) as usize]
     } else {
         MONTHS_EN_FULL[(month - 1) as usize]
@@ -298,7 +298,7 @@ fn gantt_weekday_label(day: i64, lang: Lang) -> &'static str {
     const WEEKDAYS_DE: [&str; 7] = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
     const WEEKDAYS_EN: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     let index = (day + 3).rem_euclid(7) as usize;
-    if lang == Lang::De {
+    if lang.is_de() {
         WEEKDAYS_DE[index]
     } else {
         WEEKDAYS_EN[index]

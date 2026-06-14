@@ -25,8 +25,10 @@ pub(crate) fn settings_view(lang: ReadSignal<Lang>) -> View {
                     <strong>{move || option.label(lang.get())}</strong>
                     <small>{move || option.description(lang.get())}</small>
                     <span class="theme-check">{move || if theme.get() == option {
-                        if lang.get() == Lang::De { "Aktiv" } else { "Active" }
-                    } else if lang.get() == Lang::De { "Auswählen" } else { "Select" }}</span>
+                        lang.get().tr("Aktiv", "Active")
+                    } else {
+                        lang.get().tr("Auswählen", "Select")
+                    }}</span>
                 </button>
             }
         })
@@ -36,10 +38,10 @@ pub(crate) fn settings_view(lang: ReadSignal<Lang>) -> View {
         <div class="settings-space">
             <section class="panel">
                 <div class="panel-head">
-                    <h3>{move || if lang.get() == Lang::De { "Design / Theme" } else { "Appearance / theme" }}</h3>
+                    <h3>{move || lang.get().tr("Design / Theme", "Appearance / theme")}</h3>
                 </div>
                 <p class="settings-hint">
-                    {move || if lang.get() == Lang::De {
+                    {move || if lang.get().is_de() {
                         "Wähle das Erscheinungsbild der App. Die Auswahl wird in diesem Browser gespeichert."
                     } else {
                         "Choose how the app looks. Your choice is saved in this browser."

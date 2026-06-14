@@ -50,20 +50,20 @@ pub(crate) fn overview_view(
     view! {
         <div class="overview-grid">
             <div class="stats-row">
-                {stat(AppIcon::Kanban, open, if lang.get() == Lang::De { "Offene Aufgaben" } else { "Open tasks" }, "cool")}
-                {stat(AppIcon::Clock, today, if lang.get() == Lang::De { "Heute fällig" } else { "Due today" }, "accent")}
-                {stat(AppIcon::Flag, overdue, if lang.get() == Lang::De { "Überfällig" } else { "Overdue" }, "warm")}
-                {stat(AppIcon::CheckCircle, done, if lang.get() == Lang::De { "Diese Woche fertig" } else { "Done this week" }, "good")}
+                {stat(AppIcon::Kanban, open, lang.get().tr("Offene Aufgaben", "Open tasks"), "cool")}
+                {stat(AppIcon::Clock, today, lang.get().tr("Heute fällig", "Due today"), "accent")}
+                {stat(AppIcon::Flag, overdue, lang.get().tr("Überfällig", "Overdue"), "warm")}
+                {stat(AppIcon::CheckCircle, done, lang.get().tr("Diese Woche fertig", "Done this week"), "good")}
             </div>
             <div class="two-col">
                 <div class="panel">
-                    <h3>{move || if lang.get() == Lang::De { "Heute fällig" } else { "Due today" }}</h3>
+                    <h3>{move || lang.get().tr("Heute fällig", "Due today")}</h3>
                     <div class="row-list">
                         {today_tasks.map(|task| task_row(task, boot.members.clone(), lang, set_open_task)).collect_view()}
                     </div>
                 </div>
                 <div class="panel">
-                    <h3>{move || if lang.get() == Lang::De { "Projekt-Fortschritt" } else { "Project progress" }}</h3>
+                    <h3>{move || lang.get().tr("Projekt-Fortschritt", "Project progress")}</h3>
                     <div class="progress-big">
                         <strong>{format!("{progress}%")}</strong>
                         <span><i style=format!("width:{progress}%")></i></span>
@@ -81,10 +81,10 @@ pub(crate) fn overview_view(
             <div class="two-col">
                 <div class="panel">
                     <div class="panel-head">
-                        <h3>{move || if lang.get() == Lang::De { "Anstehende Meilensteine" } else { "Upcoming milestones" }}</h3>
+                        <h3>{move || lang.get().tr("Anstehende Meilensteine", "Upcoming milestones")}</h3>
                         {if can_edit {
                             view! {
-                                <button class="icon-button small" title=move || if lang.get() == Lang::De { "Meilenstein erstellen" } else { "Create milestone" } on:click=move |_| set_show_create_milestone.set(true)>"+ "</button>
+                                <button class="icon-button small" title=move || lang.get().tr("Meilenstein erstellen", "Create milestone") on:click=move |_| set_show_create_milestone.set(true)>"+ "</button>
                             }.into_view()
                         } else {
                             empty_view()
@@ -93,11 +93,11 @@ pub(crate) fn overview_view(
                     {if milestones.is_empty() {
                         view! {
                             <div class="empty-state compact">
-                                <strong>{move || if lang.get() == Lang::De { "Keine Meilensteine geplant" } else { "No milestones planned" }}</strong>
-                                <span>{move || if lang.get() == Lang::De { "Sobald Termine angelegt sind, erscheinen sie hier." } else { "Scheduled milestones will appear here." }}</span>
+                                <strong>{move || lang.get().tr("Keine Meilensteine geplant", "No milestones planned")}</strong>
+                                <span>{move || lang.get().tr("Sobald Termine angelegt sind, erscheinen sie hier.", "Scheduled milestones will appear here.")}</span>
                                 {if can_edit {
                                     view! {
-                                        <button class="btn primary" on:click=move |_| set_show_create_milestone.set(true)>{move || if lang.get() == Lang::De { "Meilenstein anlegen" } else { "Create milestone" }}</button>
+                                        <button class="btn primary" on:click=move |_| set_show_create_milestone.set(true)>{move || lang.get().tr("Meilenstein anlegen", "Create milestone")}</button>
                                     }.into_view()
                                 } else {
                                     empty_view()
@@ -114,7 +114,7 @@ pub(crate) fn overview_view(
                                     let milestone_id = m.id.clone();
                                     let milestone_title = title_for(m.title.clone(), m.title_en.clone(), lang.get());
                                     view! {
-                                        <button class="danger-icon" title=move || if lang.get() == Lang::De { "Meilenstein loeschen" } else { "Delete milestone" } on:click=move |_| {
+                                        <button class="danger-icon" title=move || lang.get().tr("Meilenstein loeschen", "Delete milestone") on:click=move |_| {
                                             delete_milestone(milestone_id.clone(), milestone_title.clone(), lang, set_data, set_error);
                                         }>"x"</button>
                                     }.into_view()
@@ -126,9 +126,9 @@ pub(crate) fn overview_view(
                     }}
                 </div>
                 <div class="panel">
-                    <h3>{move || if lang.get() == Lang::De { "Aktivität" } else { "Activity" }}</h3>
+                    <h3>{move || lang.get().tr("Aktivität", "Activity")}</h3>
                     {boot.audit_events.iter().take(6).map(|a| view! {
-                        <div class="activity-row"><span class="avatar tiny">{a.actor_name.as_deref().map_or_else(|| "S".into(), initials)}</span><span>{a.actor_name.clone().unwrap_or_else(|| "System".into())}" · "{a.action.clone()}</span><small>{if lang.get() == Lang::De { a.created_label_de.clone() } else { a.created_label_en.clone() }}</small></div>
+                        <div class="activity-row"><span class="avatar tiny">{a.actor_name.as_deref().map_or_else(|| "S".into(), initials)}</span><span>{a.actor_name.clone().unwrap_or_else(|| "System".into())}" · "{a.action.clone()}</span><small>{if lang.get().is_de() { a.created_label_de.clone() } else { a.created_label_en.clone() }}</small></div>
                     }).collect_view()}
                 </div>
             </div>
@@ -246,27 +246,27 @@ pub(crate) fn ticket_view(
     view! {
         <div class="ticket-grid">
             <div class="stats-row">
-                {stat(AppIcon::Ticket, boot.tickets.len(), if lang.get() == Lang::De { "Tickets gesamt" } else { "Total tickets" }, "cool")}
-                {stat(AppIcon::Alert, open, if lang.get() == Lang::De { "Offen" } else { "Open" }, "accent")}
-                {stat(AppIcon::Timeline, active, if lang.get() == Lang::De { "In Arbeit" } else { "In progress" }, "warm")}
-                {stat(AppIcon::CheckCircle, done, if lang.get() == Lang::De { "Erledigt" } else { "Done" }, "good")}
+                {stat(AppIcon::Ticket, boot.tickets.len(), lang.get().tr("Tickets gesamt", "Total tickets"), "cool")}
+                {stat(AppIcon::Alert, open, lang.get().tr("Offen", "Open"), "accent")}
+                {stat(AppIcon::Timeline, active, lang.get().tr("In Arbeit", "In progress"), "warm")}
+                {stat(AppIcon::CheckCircle, done, lang.get().tr("Erledigt", "Done"), "good")}
             </div>
             <div class="table-panel">
                 <div class="ticket-head">
                     <span>"Ticket"</span>
                     <span>"Status"</span>
-                    <span>{move || if lang.get() == Lang::De { "Prioritaet" } else { "Priority" }}</span>
-                    <span>{move || if lang.get() == Lang::De { "Melder" } else { "Requester" }}</span>
-                    <span>{move || if lang.get() == Lang::De { "Zuweisung" } else { "Assignee" }}</span>
-                    <span>{move || if lang.get() == Lang::De { "Aktualisiert" } else { "Updated" }}</span>
+                    <span>{move || lang.get().tr("Prioritaet", "Priority")}</span>
+                    <span>{move || lang.get().tr("Melder", "Requester")}</span>
+                    <span>{move || lang.get().tr("Zuweisung", "Assignee")}</span>
+                    <span>{move || lang.get().tr("Aktualisiert", "Updated")}</span>
                 </div>
                 {if boot.tickets.is_empty() {
                     view! {
                         <div class="empty-state">
-                            <strong>{move || if lang.get() == Lang::De { "Noch keine Tickets" } else { "No tickets yet" }}</strong>
+                            <strong>{move || lang.get().tr("Noch keine Tickets", "No tickets yet")}</strong>
                             {if can_edit {
                                 view! {
-                                    <button class="btn primary" on:click=move |_| set_show_create_ticket.set(true)>{move || if lang.get() == Lang::De { "Ticket erstellen" } else { "Create ticket" }}</button>
+                                    <button class="btn primary" on:click=move |_| set_show_create_ticket.set(true)>{move || lang.get().tr("Ticket erstellen", "Create ticket")}</button>
                                 }.into_view()
                             } else {
                                 empty_view()
@@ -285,7 +285,7 @@ pub(crate) fn ticket_view(
                         } else {
                             ticket.requester_name
                         };
-                        let updated = if lang.get() == Lang::De { ticket.updated_label_de } else { ticket.updated_label_en };
+                        let updated = if lang.get().is_de() { ticket.updated_label_de } else { ticket.updated_label_en };
                         view! {
                             <button class="ticket-row" on:click=move |_| set_open_ticket.set(Some(ticket_id.clone()))>
                                 <span><small>{ticket.key}</small><strong>{ticket.title}</strong><em>{ticket.description}</em></span>

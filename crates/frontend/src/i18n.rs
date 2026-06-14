@@ -17,7 +17,7 @@ pub(crate) fn title_for(de: String, en: Option<String>, lang: Lang) -> String {
 }
 
 pub(crate) fn status_name(status: &StatusDto, lang: Lang) -> &'_ str {
-    if lang == Lang::De {
+    if lang.is_de() {
         &status.name_de
     } else {
         &status.name_en
@@ -299,12 +299,12 @@ pub(crate) fn fmt_date(iso: &str, lang: Lang) -> String {
     let Some((_, m, d)) = parse_iso(iso) else {
         return iso.to_string();
     };
-    let month = if lang == Lang::De {
+    let month = if lang.is_de() {
         MONTHS_DE[(m - 1) as usize]
     } else {
         MONTHS_EN[(m - 1) as usize]
     };
-    if lang == Lang::De {
+    if lang.is_de() {
         format!("{d}. {month}")
     } else {
         format!("{month} {d}")

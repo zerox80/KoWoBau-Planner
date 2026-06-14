@@ -72,11 +72,7 @@ pub(crate) fn task_detail(
     let task_id_for_save = task.id.clone();
     let save = move |_| {
         if title_edit.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(if lang.get_untracked() == Lang::De {
-                "Bitte gib zuerst einen Aufgabentitel ein.".into()
-            } else {
-                "Add a task title first.".into()
-            }));
+            set_local_error.set(Some(lang.get_untracked().tr("Bitte gib zuerst einen Aufgabentitel ein.", "Add a task title first.").into()));
             return;
         }
         set_local_error.set(None);
@@ -111,15 +107,12 @@ pub(crate) fn task_detail(
     let task_id_for_delete = task.id.clone();
     let title_for_delete = title.clone();
     let delete = move |_| {
-        let confirm_text = if lang.get_untracked() == Lang::De {
+        let confirm_text = if lang.get_untracked().is_de() {
             format!("{title_for_delete} wirklich loeschen?")
         } else {
             format!("Delete {title_for_delete}?")
         };
-        let confirmed = web_sys::window()
-            .and_then(|w| w.confirm_with_message(&confirm_text).ok())
-            .unwrap_or(false);
-        if !confirmed {
+        if !confirm(&confirm_text) {
             return;
         }
         let task_id = task_id_for_delete.clone();
@@ -207,13 +200,13 @@ pub(crate) fn task_detail(
                     } else {
                         view! {
                             <button class="link-button" on:click=move |_| set_editing.set(true)>
-                                {move || if lang.get() == Lang::De { "Bearbeiten" } else { "Edit" }}
+                                {move || lang.get().tr("Bearbeiten", "Edit")}
                             </button>
                         }.into_view()
                     }}
                     {if can_edit {
                         view! {
-                            <button class="danger-link" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
+                            <button class="danger-link" on:click=delete>{move || lang.get().tr("Loeschen", "Delete")}</button>
                         }.into_view()
                     } else {
                         empty_view()
@@ -224,7 +217,7 @@ pub(crate) fn task_detail(
             {move || if can_edit && editing.get() {
                 view! {
                     <label class="drawer-field title-field">
-                        <span>{move || if lang.get() == Lang::De { "Titel" } else { "Title" }}</span>
+                        <span>{move || lang.get().tr("Titel", "Title")}</span>
                         <input class="title-input" prop:value=title_edit on:input=move |ev| {
                             set_title_edit.set(event_target_value(&ev));
                             set_local_error.set(None);
@@ -242,9 +235,9 @@ pub(crate) fn task_detail(
                 view! {
                     <div class="detail-meta">
                         <span>
-                            <small>{move || if lang.get() == Lang::De { "Zuweisen" } else { "Assign" }}</small>
+                            <small>{move || lang.get().tr("Zuweisen", "Assign")}</small>
                             <select on:change=move |ev| set_assignee_edit.set(select_value(&ev))>
-                                <option value="" selected=current_assignee.is_empty()>{move || if lang.get() == Lang::De { "Nicht zugewiesen" } else { "Unassigned" }}</option>
+                                <option value="" selected=current_assignee.is_empty()>{move || lang.get().tr("Nicht zugewiesen", "Unassigned")}</option>
                                 {members_for_assign.clone().into_iter().map(|m| {
                                     let selected = current_assignee == m.user_id;
                                     view! { <option value=m.user_id selected=selected>{m.name}</option> }
@@ -252,29 +245,29 @@ pub(crate) fn task_detail(
                             </select>
                         </span>
                         <span>
-                            <small>{move || if lang.get() == Lang::De { "Faelligkeit" } else { "Due date" }}</small>
+                            <small>{move || lang.get().tr("Faelligkeit", "Due date")}</small>
                             <input type="date" prop:value=due_date_edit on:input=move |ev| set_due_date_edit.set(event_target_value(&ev))/>
                         </span>
                         <span>
-                            <small>{move || if lang.get() == Lang::De { "Prioritaet" } else { "Priority" }}</small>
+                            <small>{move || lang.get().tr("Prioritaet", "Priority")}</small>
                             <select on:change=move |ev| set_priority_edit.set(priority_from_value(&select_value(&ev)))>
-                                <option value="urgent" selected=current_priority == Priority::Urgent>{move || if lang.get() == Lang::De { "Dringend" } else { "Urgent" }}</option>
-                                <option value="high" selected=current_priority == Priority::High>{move || if lang.get() == Lang::De { "Hoch" } else { "High" }}</option>
-                                <option value="medium" selected=current_priority == Priority::Medium>{move || if lang.get() == Lang::De { "Mittel" } else { "Medium" }}</option>
-                                <option value="low" selected=current_priority == Priority::Low>{move || if lang.get() == Lang::De { "Niedrig" } else { "Low" }}</option>
+                                <option value="urgent" selected=current_priority == Priority::Urgent>{move || lang.get().tr("Dringend", "Urgent")}</option>
+                                <option value="high" selected=current_priority == Priority::High>{move || lang.get().tr("Hoch", "High")}</option>
+                                <option value="medium" selected=current_priority == Priority::Medium>{move || lang.get().tr("Mittel", "Medium")}</option>
+                                <option value="low" selected=current_priority == Priority::Low>{move || lang.get().tr("Niedrig", "Low")}</option>
                             </select>
                         </span>
                         <span>
                             <small>"Phase"</small>
                             <select on:change=move |ev| set_phase_edit.set(select_value(&ev))>
-                                <option value="planung" selected=current_phase == "planung">{move || if lang.get() == Lang::De { "Planung" } else { "Planning" }}</option>
-                                <option value="vergabe" selected=current_phase == "vergabe">{move || if lang.get() == Lang::De { "Vergabe" } else { "Tendering" }}</option>
-                                <option value="ausfuehrung" selected=current_phase == "ausfuehrung">{move || if lang.get() == Lang::De { "Ausfuehrung" } else { "Execution" }}</option>
-                                <option value="abnahme" selected=current_phase == "abnahme">{move || if lang.get() == Lang::De { "Abnahme" } else { "Handover" }}</option>
+                                <option value="planung" selected=current_phase == "planung">{move || lang.get().tr("Planung", "Planning")}</option>
+                                <option value="vergabe" selected=current_phase == "vergabe">{move || lang.get().tr("Vergabe", "Tendering")}</option>
+                                <option value="ausfuehrung" selected=current_phase == "ausfuehrung">{move || lang.get().tr("Ausfuehrung", "Execution")}</option>
+                                <option value="abnahme" selected=current_phase == "abnahme">{move || lang.get().tr("Abnahme", "Handover")}</option>
                             </select>
                         </span>
                         <span>
-                            <small>{move || if lang.get() == Lang::De { "Wiederholung" } else { "Repeat" }}</small>
+                            <small>{move || lang.get().tr("Wiederholung", "Repeat")}</small>
                             <select on:change=move |ev| set_recurrence_edit.set(recurrence_from_value(&select_value(&ev)))>
                                 {recurrence_options(current_recurrence, lang)}
                             </select>
@@ -284,16 +277,16 @@ pub(crate) fn task_detail(
             } else {
                 view! {
                     <div class="detail-meta">
-                        <span><small>{move || if lang.get() == Lang::De { "Zuweisen" } else { "Assign" }}</small>{assignee_avatars(&assignees, &members_for_display)}</span>
-                        <span><small>{move || if lang.get() == Lang::De { "Faelligkeit" } else { "Due date" }}</small><b>{due.clone()}</b></span>
-                        <span><small>{move || if lang.get() == Lang::De { "Prioritaet" } else { "Priority" }}</small><b>{priority.clone()}</b></span>
-                        <span><small>{move || if lang.get() == Lang::De { "Wiederholung" } else { "Repeat" }}</small><b>{move || recurrence_label(task_recurrence.as_ref(), lang.get())}</b></span>
-                        <span><small>{move || if lang.get() == Lang::De { "Projekt" } else { "Project" }}</small><b>{project_line.clone()}</b></span>
+                        <span><small>{move || lang.get().tr("Zuweisen", "Assign")}</small>{assignee_avatars(&assignees, &members_for_display)}</span>
+                        <span><small>{move || lang.get().tr("Faelligkeit", "Due date")}</small><b>{due.clone()}</b></span>
+                        <span><small>{move || lang.get().tr("Prioritaet", "Priority")}</small><b>{priority.clone()}</b></span>
+                        <span><small>{move || lang.get().tr("Wiederholung", "Repeat")}</small><b>{move || recurrence_label(task_recurrence.as_ref(), lang.get())}</b></span>
+                        <span><small>{move || lang.get().tr("Projekt", "Project")}</small><b>{project_line.clone()}</b></span>
                     </div>
                 }.into_view()
             }}
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Beschreibung" } else { "Description" }}</h3>
+                <h3>{move || lang.get().tr("Beschreibung", "Description")}</h3>
                 {move || if can_edit && editing.get() {
                     view! {
                         <textarea class="drawer-textarea" prop:value=description_edit on:input=move |ev| set_description_edit.set(textarea_value(&ev))></textarea>
@@ -303,7 +296,7 @@ pub(crate) fn task_detail(
                 }}
             </section>
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Unteraufgaben" } else { "Subtasks" }}</h3>
+                <h3>{move || lang.get().tr("Unteraufgaben", "Subtasks")}</h3>
                 <div class="progress-line"><i style=format!("width:{pct}%")></i></div>
                 {subtasks.into_iter().map(|sub| {
                     let task_id = task_id_base.clone();
@@ -325,7 +318,7 @@ pub(crate) fn task_detail(
                 }).collect_view()}
             </section>
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Anhaenge" } else { "Attachments" }}</h3>
+                <h3>{move || lang.get().tr("Anhaenge", "Attachments")}</h3>
                 <div class="attachments">
                     {attachments.into_iter().map(|a| attachment_view(a, lang, can_edit.then_some((editing, delete_attachment)))).collect_view()}
                 </div>
@@ -346,7 +339,7 @@ pub(crate) fn task_detail(
                                 }
                                 input.set_value("");
                             }/>
-                            {move || match (uploading.get(), lang.get() == Lang::De) {
+                            {move || match (uploading.get(), lang.get().is_de()) {
                                 (true, true) => "Lädt hoch...",
                                 (true, false) => "Uploading...",
                                 (false, true) => "+ Datei hochladen",
@@ -358,9 +351,9 @@ pub(crate) fn task_detail(
                 })}
             </section>
             <section>
-                <h3>{move || if lang.get() == Lang::De { "Kommentare" } else { "Comments" }}</h3>
+                <h3>{move || lang.get().tr("Kommentare", "Comments")}</h3>
                 {comments.into_iter().map(|c| {
-                    let created = if lang.get() == Lang::De { c.created_label_de } else { c.created_label_en };
+                    let created = if lang.get().is_de() { c.created_label_de } else { c.created_label_en };
                     let body = comment_body_view(&c.body, &member_names);
                     view! { <div class="comment"><span class="avatar tiny">{c.author_initials}</span><p><strong>{c.author_name}</strong><br/>{body}</p><small>{created}</small></div> }
                 }).collect_view()}
@@ -388,7 +381,7 @@ pub(crate) fn task_detail(
                         })
                     }}
                     <input
-                        placeholder=move || if lang.get() == Lang::De { "Kommentar schreiben... (@ erwähnt)" } else { "Write a comment... (@ mentions)" }
+                        placeholder=move || lang.get().tr("Kommentar schreiben... (@ erwähnt)", "Write a comment... (@ mentions)")
                         prop:value=comment
                         on:input=move |ev| {
                             let value = event_target_value(&ev);
@@ -458,8 +451,8 @@ pub(crate) fn task_detail(
                     );
                     set_local_error.set(None);
                     set_editing.set(false);
-                }>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
-                <button class="btn primary" disabled=move || busy.get() on:click=save>{move || if lang.get() == Lang::De { "Speichern" } else { "Save" }}</button>
+                }>{move || lang.get().tr("Abbrechen", "Cancel")}</button>
+                <button class="btn primary" disabled=move || busy.get() on:click=save>{move || lang.get().tr("Speichern", "Save")}</button>
             </section>
         </aside>
     }.into_view()

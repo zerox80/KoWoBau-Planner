@@ -21,8 +21,8 @@ pub(crate) fn calendar_view(
             <div class="calendar-head">
                 <button
                     class="cal-nav"
-                    title=move || if lang.get() == Lang::De { "Voriger Monat" } else { "Previous month" }
-                    aria-label=move || if lang.get() == Lang::De { "Voriger Monat" } else { "Previous month" }
+                    title=move || lang.get().tr("Voriger Monat", "Previous month")
+                    aria-label=move || lang.get().tr("Voriger Monat", "Previous month")
                     on:click=move |_| {
                         set_expanded.set(None);
                         set_cursor.update(|c| *c = prev_month(c.0, c.1));
@@ -36,8 +36,8 @@ pub(crate) fn calendar_view(
                 </strong>
                 <button
                     class="cal-nav"
-                    title=move || if lang.get() == Lang::De { "Nächster Monat" } else { "Next month" }
-                    aria-label=move || if lang.get() == Lang::De { "Nächster Monat" } else { "Next month" }
+                    title=move || lang.get().tr("Nächster Monat", "Next month")
+                    aria-label=move || lang.get().tr("Nächster Monat", "Next month")
                     on:click=move |_| {
                         set_expanded.set(None);
                         set_cursor.update(|c| *c = next_month(c.0, c.1));
@@ -50,7 +50,7 @@ pub(crate) fn calendar_view(
                         set_expanded.set(None);
                         set_cursor.set((today_year, today_month));
                     }
-                >{move || if lang.get() == Lang::De { "Heute" } else { "Today" }}</button>
+                >{move || lang.get().tr("Heute", "Today")}</button>
             </div>
             <div class="calendar-weekdays">
                 {move || {
@@ -219,7 +219,7 @@ pub(crate) fn next_month(year: i32, month: u32) -> (i32, u32) {
 
 fn month_full(month: u32, lang: Lang) -> &'static str {
     let i = (month - 1) as usize;
-    if lang == Lang::De {
+    if lang.is_de() {
         MONTHS_DE_FULL[i]
     } else {
         MONTHS_EN_FULL[i]
@@ -286,7 +286,7 @@ pub(crate) fn calendar_is_weekend(day: i64) -> bool {
 }
 
 fn calendar_weekday_labels(lang: Lang) -> [&'static str; 7] {
-    if lang == Lang::De {
+    if lang.is_de() {
         ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
     } else {
         ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -300,7 +300,7 @@ pub(crate) fn roadmap_view(
     let phases = [
         (
             "planung",
-            if lang.get() == Lang::De {
+            if lang.get().is_de() {
                 "Planung"
             } else {
                 "Planning"
@@ -308,7 +308,7 @@ pub(crate) fn roadmap_view(
         ),
         (
             "vergabe",
-            if lang.get() == Lang::De {
+            if lang.get().is_de() {
                 "Vergabe"
             } else {
                 "Tendering"
@@ -316,7 +316,7 @@ pub(crate) fn roadmap_view(
         ),
         (
             "ausfuehrung",
-            if lang.get() == Lang::De {
+            if lang.get().is_de() {
                 "Ausführung"
             } else {
                 "Execution"
@@ -324,7 +324,7 @@ pub(crate) fn roadmap_view(
         ),
         (
             "abnahme",
-            if lang.get() == Lang::De {
+            if lang.get().is_de() {
                 "Abnahme"
             } else {
                 "Handover"
@@ -364,10 +364,10 @@ pub(crate) fn team_view(boot: BootstrapDto, lang: ReadSignal<Lang>) -> View {
                         <p>{role_label(&m.role, lang.get())}</p>
                         <small>
                             <strong>{m.open_tasks}</strong>
-                            {move || if lang.get() == Lang::De { " offen" } else { " open" }}
+                            {move || lang.get().tr(" offen", " open")}
                             " / "
                             <strong>{m.done_tasks}</strong>
-                            {move || if lang.get() == Lang::De { " fertig" } else { " done" }}
+                            {move || lang.get().tr(" fertig", " done")}
                         </small>
                     </div>
                 </article>

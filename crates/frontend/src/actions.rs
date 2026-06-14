@@ -185,7 +185,7 @@ pub(crate) fn add_existing_user_to_workspace(
         {
             Ok(_) => refresh_bootstrap(set_data, set_error).await,
             Err(err) => {
-                let prefix = if lang.get_untracked() == Lang::De {
+                let prefix = if lang.get_untracked().is_de() {
                     "Konnte User nicht hinzufuegen"
                 } else {
                     "Could not add user"
@@ -203,15 +203,12 @@ pub(crate) fn remove_member(
     set_data: WriteSignal<Option<BootstrapDto>>,
     set_error: WriteSignal<Option<String>>,
 ) {
-    let confirm_text = if lang.get_untracked() == Lang::De {
+    let confirm_text = if lang.get_untracked().is_de() {
         format!("{member_name} wirklich aus dem Workspace entfernen?")
     } else {
         format!("Remove {member_name} from the workspace?")
     };
-    let confirmed = web_sys::window()
-        .and_then(|w| w.confirm_with_message(&confirm_text).ok())
-        .unwrap_or(false);
-    if !confirmed {
+    if !confirm(&confirm_text) {
         return;
     }
     spawn_local(async move {
@@ -270,15 +267,12 @@ pub(crate) fn delete_milestone(
     set_data: WriteSignal<Option<BootstrapDto>>,
     set_error: WriteSignal<Option<String>>,
 ) {
-    let confirm_text = if lang.get_untracked() == Lang::De {
+    let confirm_text = if lang.get_untracked().is_de() {
         format!("{milestone_title} wirklich loeschen?")
     } else {
         format!("Delete {milestone_title}?")
     };
-    let confirmed = web_sys::window()
-        .and_then(|w| w.confirm_with_message(&confirm_text).ok())
-        .unwrap_or(false);
-    if !confirmed {
+    if !confirm(&confirm_text) {
         return;
     }
     spawn_local(async move {
