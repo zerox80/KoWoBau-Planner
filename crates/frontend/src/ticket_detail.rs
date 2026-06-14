@@ -156,7 +156,7 @@ pub(crate) fn ticket_detail(
                             <button class="danger-link danger-action" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
                         }.into_view()
                     } else {
-                        view! { <span/> }.into_view()
+                        empty_view()
                     }}
                     <button class="btn ghost" on:click=move |_| set_open_ticket.set(None)>{move || if lang.get() == Lang::De { "Abbrechen" } else { "Cancel" }}</button>
                     {if can_edit {
@@ -164,7 +164,7 @@ pub(crate) fn ticket_detail(
                             <button class="btn primary" disabled=move || busy.get() on:click=save>{move || if lang.get() == Lang::De { "Speichern" } else { "Save" }}</button>
                         }.into_view()
                     } else {
-                        view! { <span/> }.into_view()
+                        empty_view()
                     }}
                 </footer>
             </section>

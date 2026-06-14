@@ -5,13 +5,8 @@ pub(crate) async fn list_tasks(
     headers: HeaderMap,
     Query(query): Query<WorkspaceQuery>,
 ) -> Result<Json<Vec<TaskDto>>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let project_id = active_project_id(
-        &state.db,
-        uuid_from_str(&ctx.user.id)?,
-        query.workspace_uuid()?,
-    )
-    .await?;
+    let (_, user_id) = require_user(&state, &headers).await?;
+    let project_id = active_project_id(&state.db, user_id, query.workspace_uuid()?).await?;
     Ok(Json(fetch_tasks(&state.db, project_id).await?))
 }
 
@@ -20,9 +15,9 @@ pub(crate) async fn get_task(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
+    let (_, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
-    assert_task_read(&state.db, uuid_from_str(&ctx.user.id)?, task_id).await?;
+    assert_task_read(&state.db, user_id, task_id).await?;
     Ok(Json(fetch_task(&state.db, task_id).await?))
 }
 
@@ -31,8 +26,7 @@ pub(crate) async fn create_task(
     headers: HeaderMap,
     Json(payload): Json<CreateTaskRequest>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let project_id = uuid_from_str(&payload.project_id)?;
     let workspace_id = assert_project_edit(&state.db, user_id, project_id).await?;
 
@@ -102,8 +96,7 @@ pub(crate) async fn update_task(
     Path(id): Path<String>,
     Json(payload): Json<UpdateTaskRequest>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
 
@@ -225,8 +218,7 @@ pub(crate) async fn move_task(
     Path(id): Path<String>,
     Json(payload): Json<MoveTaskRequest>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     let status_id = uuid_from_str(&payload.status_id)?;
@@ -270,8 +262,7 @@ pub(crate) async fn delete_task(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     let mut tx = state.db.begin().await?;

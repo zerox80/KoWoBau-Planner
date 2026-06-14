@@ -5,8 +5,7 @@ pub(crate) async fn read_notification(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (_, user_id) = require_user(&state, &headers).await?;
     let notification_id = uuid_from_str(&id)?;
     sqlx::query("UPDATE notifications SET unread = false WHERE id = $1 AND user_id = $2")
         .bind(notification_id)
@@ -21,8 +20,7 @@ pub(crate) async fn read_all_notifications(
     headers: HeaderMap,
     Query(query): Query<WorkspaceQuery>,
 ) -> Result<StatusCode, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (_, user_id) = require_user(&state, &headers).await?;
     let (workspace_id,): (Uuid,) = sqlx::query_as(
         "SELECT workspace_id FROM memberships \
          WHERE user_id = $1 AND status = 'active' \
@@ -102,8 +100,7 @@ pub(crate) async fn ws_handler(
     if !same_origin(&state.cfg, &headers) {
         return Err(AppError::Forbidden);
     }
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let selected_workspace = query
         .workspace_id
         .as_deref()

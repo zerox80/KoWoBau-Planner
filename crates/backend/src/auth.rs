@@ -195,7 +195,7 @@ pub(crate) async fn logout_all(
 ) -> Result<Response, AppError> {
     let ctx = require_auth(&state, &headers).await?;
     sqlx::query("DELETE FROM sessions WHERE user_id = $1")
-        .bind(uuid_from_str(&ctx.user.id)?)
+        .bind(ctx.user_id()?)
         .execute(&state.db)
         .await?;
     let mut res = StatusCode::NO_CONTENT.into_response();
@@ -220,11 +220,6 @@ pub(crate) async fn bootstrap(
     Query(query): Query<WorkspaceQuery>,
 ) -> Result<Json<BootstrapDto>, AppError> {
     let ctx = require_auth(&state, &headers).await?;
-    let data = fetch_bootstrap(
-        &state.db,
-        uuid_from_str(&ctx.user.id)?,
-        query.workspace_uuid()?,
-    )
-    .await?;
+    let data = fetch_bootstrap(&state.db, ctx.user_id()?, query.workspace_uuid()?).await?;
     Ok(Json(data))
 }

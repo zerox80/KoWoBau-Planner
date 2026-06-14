@@ -5,13 +5,8 @@ pub(crate) async fn list_tickets(
     headers: HeaderMap,
     Query(query): Query<WorkspaceQuery>,
 ) -> Result<Json<Vec<TicketDto>>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let project_id = active_project_id(
-        &state.db,
-        uuid_from_str(&ctx.user.id)?,
-        query.workspace_uuid()?,
-    )
-    .await?;
+    let (_, user_id) = require_user(&state, &headers).await?;
+    let project_id = active_project_id(&state.db, user_id, query.workspace_uuid()?).await?;
     Ok(Json(fetch_tickets(&state.db, project_id).await?))
 }
 
@@ -20,9 +15,9 @@ pub(crate) async fn get_ticket(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<TicketDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
+    let (_, user_id) = require_user(&state, &headers).await?;
     let ticket_id = uuid_from_str(&id)?;
-    assert_ticket_read(&state.db, uuid_from_str(&ctx.user.id)?, ticket_id).await?;
+    assert_ticket_read(&state.db, user_id, ticket_id).await?;
     Ok(Json(fetch_ticket(&state.db, ticket_id).await?))
 }
 
@@ -31,8 +26,7 @@ pub(crate) async fn create_ticket(
     headers: HeaderMap,
     Json(payload): Json<CreateTicketRequest>,
 ) -> Result<Json<TicketDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let project_id = uuid_from_str(&payload.project_id)?;
     let workspace_id = assert_project_edit(&state.db, user_id, project_id).await?;
 
@@ -86,8 +80,7 @@ pub(crate) async fn update_ticket(
     Path(id): Path<String>,
     Json(payload): Json<UpdateTicketRequest>,
 ) -> Result<Json<TicketDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let ticket_id = uuid_from_str(&id)?;
     let workspace_id = assert_ticket_edit(&state.db, user_id, ticket_id).await?;
 
@@ -167,8 +160,7 @@ pub(crate) async fn delete_ticket(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let ticket_id = uuid_from_str(&id)?;
     let workspace_id = assert_ticket_edit(&state.db, user_id, ticket_id).await?;
     let mut tx = state.db.begin().await?;

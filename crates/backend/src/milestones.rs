@@ -5,13 +5,8 @@ pub(crate) async fn list_milestones(
     headers: HeaderMap,
     Query(query): Query<WorkspaceQuery>,
 ) -> Result<Json<Vec<MilestoneDto>>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let project_id = active_project_id(
-        &state.db,
-        uuid_from_str(&ctx.user.id)?,
-        query.workspace_uuid()?,
-    )
-    .await?;
+    let (_, user_id) = require_user(&state, &headers).await?;
+    let project_id = active_project_id(&state.db, user_id, query.workspace_uuid()?).await?;
     Ok(Json(fetch_milestones(&state.db, project_id).await?))
 }
 
@@ -20,8 +15,7 @@ pub(crate) async fn create_milestone(
     headers: HeaderMap,
     Json(payload): Json<CreateMilestoneRequest>,
 ) -> Result<Json<MilestoneDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let project_id = uuid_from_str(&payload.project_id)?;
     let workspace_id = assert_project_edit(&state.db, user_id, project_id).await?;
 
@@ -74,8 +68,7 @@ pub(crate) async fn delete_milestone(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let milestone_id = uuid_from_str(&id)?;
     let workspace_id = assert_milestone_edit(&state.db, user_id, milestone_id).await?;
     let mut tx = state.db.begin().await?;

@@ -6,8 +6,7 @@ pub(crate) async fn create_subtask(
     Path(id): Path<String>,
     Json(payload): Json<CreateSubtaskRequest>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
     if payload.title.trim().is_empty() {
@@ -50,8 +49,7 @@ pub(crate) async fn update_subtask(
     Path((id, subtask_id)): Path<(String, String)>,
     Json(payload): Json<UpdateSubtaskRequest>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     let subtask_id = uuid_from_str(&subtask_id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
@@ -107,8 +105,7 @@ pub(crate) async fn delete_subtask(
     headers: HeaderMap,
     Path((id, subtask_id)): Path<(String, String)>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     let subtask_id = uuid_from_str(&subtask_id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
@@ -142,8 +139,7 @@ pub(crate) async fn create_comment(
     Path(id): Path<String>,
     Json(payload): Json<CreateCommentRequest>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     // Commenting is intentionally open to viewers; only read access is required.
     let workspace_id = assert_task_read(&state.db, user_id, task_id).await?;

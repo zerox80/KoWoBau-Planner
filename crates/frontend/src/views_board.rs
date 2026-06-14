@@ -87,7 +87,7 @@ pub(crate) fn overview_view(
                                 <button class="icon-button small" title=move || if lang.get() == Lang::De { "Meilenstein erstellen" } else { "Create milestone" } on:click=move |_| set_show_create_milestone.set(true)>"+ "</button>
                             }.into_view()
                         } else {
-                            view! { <span/> }.into_view()
+                            empty_view()
                         }}
                     </div>
                     {if milestones.is_empty() {
@@ -100,7 +100,7 @@ pub(crate) fn overview_view(
                                         <button class="btn primary" on:click=move |_| set_show_create_milestone.set(true)>{move || if lang.get() == Lang::De { "Meilenstein anlegen" } else { "Create milestone" }}</button>
                                     }.into_view()
                                 } else {
-                                    view! { <span/> }.into_view()
+                                    empty_view()
                                 }}
                             </div>
                         }.into_view()
@@ -119,7 +119,7 @@ pub(crate) fn overview_view(
                                         }>"x"</button>
                                     }.into_view()
                                 } else {
-                                    view! { <span/> }.into_view()
+                                    empty_view()
                                 }}
                             </div>
                         }).collect_view().into_view()
@@ -135,7 +135,7 @@ pub(crate) fn overview_view(
             {move || if can_edit && show_create_milestone.get() {
                 create_milestone_modal(boot_for_milestone_create.clone(), lang, set_show_create_milestone, set_data, set_error).into_view()
             } else {
-                view! { <span/> }.into_view()
+                empty_view()
             }}
         </div>
     }.into_view()
@@ -180,7 +180,7 @@ pub(crate) fn board_view(
                             {if can_edit {
                                 view! { <button on:click=move |_| set_show_create.set(true)>"+ "</button> }.into_view()
                             } else {
-                                view! { <span/> }.into_view()
+                                empty_view()
                             }}
                         </header>
                         {tasks.into_iter().map(|task| task_card(task, boot.members.clone(), lang, set_open_task, set_drag_task, can_edit)).collect_view()}
@@ -269,7 +269,7 @@ pub(crate) fn ticket_view(
                                     <button class="btn primary" on:click=move |_| set_show_create_ticket.set(true)>{move || if lang.get() == Lang::De { "Ticket erstellen" } else { "Create ticket" }}</button>
                                 }.into_view()
                             } else {
-                                view! { <span/> }.into_view()
+                                empty_view()
                             }}
                         </div>
                     }.into_view()
