@@ -203,7 +203,7 @@ pub(crate) fn task_detail(
                 }}
                 <span class="drawer-actions">
                     {move || if !can_edit || editing.get() {
-                        view! { <span/> }.into_view()
+                        empty_view()
                     } else {
                         view! {
                             <button class="link-button" on:click=move |_| set_editing.set(true)>
@@ -216,7 +216,7 @@ pub(crate) fn task_detail(
                             <button class="danger-link" on:click=delete>{move || if lang.get() == Lang::De { "Loeschen" } else { "Delete" }}</button>
                         }.into_view()
                     } else {
-                        view! { <span/> }.into_view()
+                        empty_view()
                     }}
                     <button class="drawer-close" on:click=move |_| set_open_task.set(None)>"x"</button>
                 </span>
