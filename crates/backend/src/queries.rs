@@ -199,27 +199,36 @@ pub(crate) async fn fetch_members(
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
         let (open_tasks, done_tasks) = counts.get(&row.user_id).copied().unwrap_or((0, 0));
-
-        out.push(MemberDto {
-            id: row.id.to_string(),
-            user_id: row.user_id.to_string(),
-            workspace_id: row.workspace_id.to_string(),
-            initials: initials(&row.name),
-            name: row.name,
-            email: row.email,
-            role: role_from_db(&row.role)?,
-            status: member_status_from_db(&row.status)?,
-            last_active_label_de: row
-                .last_active_at
-                .map_or_else(|| "nie".to_string(), |t| relative_label(t, "de")),
-            last_active_label_en: row
-                .last_active_at
-                .map_or_else(|| "never".to_string(), |t| relative_label(t, "en")),
-            open_tasks,
-            done_tasks,
-        });
+        out.push(member_from_row(row, open_tasks, done_tasks)?);
     }
     Ok(out)
+}
+
+/// Builds a `MemberDto` from its row plus the assignee task counts that are
+/// fetched separately (workspace-wide aggregate or a single targeted count).
+fn member_from_row(
+    row: MemberRow,
+    open_tasks: i64,
+    done_tasks: i64,
+) -> Result<MemberDto, AppError> {
+    Ok(MemberDto {
+        id: row.id.to_string(),
+        user_id: row.user_id.to_string(),
+        workspace_id: row.workspace_id.to_string(),
+        initials: initials(&row.name),
+        name: row.name,
+        email: row.email,
+        role: role_from_db(&row.role)?,
+        status: member_status_from_db(&row.status)?,
+        last_active_label_de: row
+            .last_active_at
+            .map_or_else(|| "nie".to_string(), |t| relative_label(t, "de")),
+        last_active_label_en: row
+            .last_active_at
+            .map_or_else(|| "never".to_string(), |t| relative_label(t, "en")),
+        open_tasks,
+        done_tasks,
+    })
 }
 
 pub(crate) async fn fetch_member(db: &PgPool, membership_id: Uuid) -> Result<MemberDto, AppError> {
@@ -246,24 +255,7 @@ pub(crate) async fn fetch_member(db: &PgPool, membership_id: Uuid) -> Result<Mem
     .fetch_one(db)
     .await?;
 
-    Ok(MemberDto {
-        id: row.id.to_string(),
-        user_id: row.user_id.to_string(),
-        workspace_id: row.workspace_id.to_string(),
-        initials: initials(&row.name),
-        name: row.name,
-        email: row.email,
-        role: role_from_db(&row.role)?,
-        status: member_status_from_db(&row.status)?,
-        last_active_label_de: row
-            .last_active_at
-            .map_or_else(|| "nie".to_string(), |t| relative_label(t, "de")),
-        last_active_label_en: row
-            .last_active_at
-            .map_or_else(|| "never".to_string(), |t| relative_label(t, "en")),
-        open_tasks,
-        done_tasks,
-    })
+    member_from_row(row, open_tasks, done_tasks)
 }
 
 pub(crate) async fn fetch_registered_users(
