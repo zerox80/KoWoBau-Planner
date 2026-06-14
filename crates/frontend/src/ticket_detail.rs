@@ -40,7 +40,14 @@ pub(crate) fn ticket_detail(
     let ticket_id_for_save = ticket.id.clone();
     let save = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(lang.get_untracked().tr("Bitte gib zuerst einen Tickettitel ein.", "Add a ticket title first.").into()));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Tickettitel ein.",
+                        "Add a ticket title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);

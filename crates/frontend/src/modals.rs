@@ -32,7 +32,14 @@ pub(crate) fn create_task_modal(
 
     let create = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(lang.get_untracked().tr("Bitte gib zuerst einen Aufgabentitel ein.", "Add a task title first.").into()));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Aufgabentitel ein.",
+                        "Add a task title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -147,7 +154,14 @@ pub(crate) fn create_ticket_modal(
 
     let create = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(lang.get_untracked().tr("Bitte gib zuerst einen Tickettitel ein.", "Add a ticket title first.").into()));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Tickettitel ein.",
+                        "Add a ticket title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -248,7 +262,14 @@ pub(crate) fn create_milestone_modal(
 
     let create = move |_| {
         if title.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(lang.get_untracked().tr("Bitte gib zuerst einen Meilenstein-Titel ein.", "Add a milestone title first.").into()));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Meilenstein-Titel ein.",
+                        "Add a milestone title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);

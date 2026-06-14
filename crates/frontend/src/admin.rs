@@ -49,7 +49,11 @@ pub(crate) fn admin_view(
         }
         let email = invite_email.get_untracked();
         if email.trim().is_empty() {
-            set_local_error.set(Some(lang.get_untracked().tr("Bitte gib eine E-Mail ein.", "Enter an email first.").into()));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr("Bitte gib eine E-Mail ein.", "Enter an email first.")
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
@@ -74,7 +78,14 @@ pub(crate) fn admin_view(
                             Ok(next) => {
                                 set_data.set(Some(next));
                                 set_invite_email.set(String::new());
-                                set_invite_result.set(Some(lang.get_untracked().tr("Bestehender User wurde direkt hinzugefuegt.", "Existing user was added directly.").into()));
+                                set_invite_result.set(Some(
+                                    lang.get_untracked()
+                                        .tr(
+                                            "Bestehender User wurde direkt hinzugefuegt.",
+                                            "Existing user was added directly.",
+                                        )
+                                        .into(),
+                                ));
                             }
                             Err(err) => set_error.set(Some(err.message)),
                         }

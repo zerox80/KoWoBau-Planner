@@ -72,7 +72,14 @@ pub(crate) fn task_detail(
     let task_id_for_save = task.id.clone();
     let save = move |_| {
         if title_edit.get_untracked().trim().is_empty() {
-            set_local_error.set(Some(lang.get_untracked().tr("Bitte gib zuerst einen Aufgabentitel ein.", "Add a task title first.").into()));
+            set_local_error.set(Some(
+                lang.get_untracked()
+                    .tr(
+                        "Bitte gib zuerst einen Aufgabentitel ein.",
+                        "Add a task title first.",
+                    )
+                    .into(),
+            ));
             return;
         }
         set_local_error.set(None);
