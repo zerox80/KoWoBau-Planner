@@ -200,6 +200,7 @@ mod realtime;
 mod settings;
 mod shell;
 mod task_detail;
+mod task_edit;
 #[cfg(test)]
 mod tests;
 mod theme;
@@ -220,6 +221,7 @@ pub(crate) use realtime::*;
 pub(crate) use settings::*;
 pub(crate) use shell::*;
 pub(crate) use task_detail::*;
+pub(crate) use task_edit::*;
 pub(crate) use theme::*;
 pub(crate) use ticket_detail::*;
 pub(crate) use views_board::*;
