@@ -97,9 +97,8 @@ pub(crate) async fn update_ticket(
 
     let mut tx = state.db.begin().await?;
     if let Some(title) = payload.title {
-        let title = required_trimmed(&title, "ticket title is required")?;
         sqlx::query("UPDATE tickets SET title = $1, updated_at = now() WHERE id = $2")
-            .bind(title)
+            .bind(title.trim())
             .bind(ticket_id)
             .execute(&mut *tx)
             .await?;
@@ -191,19 +190,9 @@ pub(crate) async fn delete_ticket(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn required_trimmed<'a>(value: &'a str, message: &'static str) -> Result<&'a str, AppError> {
-    let value = value.trim();
-    if value.is_empty() {
-        Err(AppError::BadRequest(message.into()))
-    } else {
-        Ok(value)
-    }
-}
-
 fn optional_uuid(value: Option<&str>) -> Result<Option<Uuid>, AppError> {
     value
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+        .filter(|value| !value.trim().is_empty())
         .map(uuid_from_str)
         .transpose()
 }

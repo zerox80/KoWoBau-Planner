@@ -305,15 +305,6 @@ pub(crate) async fn delete_task(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn required_trimmed<'a>(value: &'a str, message: &'static str) -> Result<&'a str, AppError> {
-    let value = value.trim();
-    if value.is_empty() {
-        Err(AppError::BadRequest(message.into()))
-    } else {
-        Ok(value)
-    }
-}
-
 async fn next_task_key(conn: &mut PgConnection, project_id: Uuid) -> Result<String, AppError> {
     // Serializes key generation per project so concurrent creates cannot collide.
     sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1))")

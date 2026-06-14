@@ -41,8 +41,6 @@ pub(crate) fn dashboard(boot: BootstrapDto, signals: AppSignals) -> View {
     let set_show_create_ticket = signals.set_show_create_ticket;
     let show_notifications = signals.show_notifications;
     let set_show_notifications = signals.set_show_notifications;
-    let drag_task = signals.drag_task;
-    let set_drag_task = signals.set_drag_task;
     let set_data = signals.set_data;
     let set_error = signals.set_error;
     let unread = boot.notifications.iter().filter(|n| n.unread).count();
