@@ -45,6 +45,21 @@ pub(crate) async fn require_auth(
     })
 }
 
+impl AuthContext {
+    pub(crate) fn user_id(&self) -> Result<Uuid, AppError> {
+        uuid_from_str(&self.user.id)
+    }
+}
+
+pub(crate) async fn require_user(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<(AuthContext, Uuid), AppError> {
+    let ctx = require_auth(state, headers).await?;
+    let user_id = ctx.user_id()?;
+    Ok((ctx, user_id))
+}
+
 pub(crate) fn parse_session_cookie(headers: &HeaderMap, cfg: &AppConfig) -> Result<Uuid, AppError> {
     let cookie = headers
         .get(COOKIE)

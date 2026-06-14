@@ -71,6 +71,7 @@ mod rows;
 mod seed;
 mod seed_tasks;
 mod session;
+mod startup;
 mod subtasks;
 mod tasks;
 #[cfg(test)]
@@ -95,6 +96,7 @@ pub(crate) use rows::*;
 pub(crate) use seed::*;
 pub(crate) use seed_tasks::*;
 pub(crate) use session::*;
+pub(crate) use startup::*;
 pub(crate) use subtasks::*;
 pub(crate) use tasks::*;
 pub(crate) use tickets::*;
@@ -103,97 +105,5 @@ pub(crate) use ws::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv().ok();
-
-    if env::args().any(|arg| arg == "--healthcheck") {
-        return healthcheck_cli();
-    }
-
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "kowobau_backend=info,tower_http=info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
-    let cfg = AppConfig::from_env()?;
-    fs::create_dir_all(&cfg.upload_dir).await?;
-
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://kowobau:kowobau@localhost:5432/kowobau".to_string());
-    let db = PgPoolOptions::new()
-        .max_connections(10)
-        .acquire_timeout(StdDuration::from_secs(10))
-        .connect(&database_url)
-        .await?;
-
-    sqlx::migrate!("./migrations").run(&db).await?;
-    if cfg.seed_demo {
-        tracing::info!("KOWOBAU_SEED_DEMO is enabled; seeding demo data on empty database");
-        seed_demo(&db, &cfg.upload_dir).await?;
-    } else {
-        tracing::info!("demo seed disabled (set KOWOBAU_SEED_DEMO=true to enable)");
-        // The demo seed creates accounts with the well-known password
-        // "password123"; leftover demo users in a non-demo deployment are an
-        // open door and deserve a loud warning on every start.
-        let demo_exists: bool =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
-                .bind(fixed_uuid("20000000-0000-4000-8000-000000000001")?)
-                .fetch_one(&db)
-                .await?;
-        if demo_exists {
-            tracing::warn!(
-                "SECURITY: demo-seeded accounts with well-known passwords exist in this \
-                 database while KOWOBAU_SEED_DEMO is off; delete the demo users or wipe \
-                 the database before production use"
-            );
-        }
-    }
-
-    let (events, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
-    let state = AppState {
-        db,
-        cfg,
-        auth_limiter: Arc::new(Mutex::new(HashMap::new())),
-        hash_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_PASSWORD_HASHES)),
-        ws_conns: Arc::new(Mutex::new(HashMap::new())),
-        events,
-    };
-    let app = build_router(state.clone());
-
-    let listener = TcpListener::bind(&state.cfg.bind).await?;
-    tracing::info!("KoWoBau-Planner listening on http://{}", state.cfg.bind);
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
-
-    Ok(())
-}
-
-pub(crate) async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        () = ctrl_c => {},
-        () = terminate => {},
-    }
+    run().await
 }

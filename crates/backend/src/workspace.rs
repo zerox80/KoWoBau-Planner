@@ -6,8 +6,7 @@ pub(crate) async fn update_workspace(
     Path(id): Path<String>,
     Json(payload): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<WorkspaceDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let workspace_id = uuid_from_str(&id)?;
     assert_workspace_admin(&state.db, user_id, workspace_id).await?;
     if let Some(name) = payload.name {
@@ -51,8 +50,7 @@ pub(crate) async fn invite_member(
     Path(id): Path<String>,
     Json(payload): Json<InviteMemberRequest>,
 ) -> Result<Json<InviteMemberResponse>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let workspace_id = uuid_from_str(&id)?;
     assert_workspace_admin(&state.db, user_id, workspace_id).await?;
     let email = payload.email.trim().to_lowercase();
@@ -171,8 +169,7 @@ pub(crate) async fn update_membership(
     Path(id): Path<String>,
     Json(payload): Json<UpdateMembershipRequest>,
 ) -> Result<Json<MemberDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let membership_id = uuid_from_str(&id)?;
     let mut tx = state.db.begin().await?;
     // FOR UPDATE serializes concurrent role changes on the same membership and
@@ -238,8 +235,7 @@ pub(crate) async fn remove_membership(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let membership_id = uuid_from_str(&id)?;
     let mut tx = state.db.begin().await?;
     let row: MembershipWorkspaceRow = sqlx::query_as(

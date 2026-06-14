@@ -6,8 +6,7 @@ pub(crate) async fn upload_attachment(
     Path(id): Path<String>,
     mut multipart: Multipart,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let task_id = uuid_from_str(&id)?;
     let workspace_id = assert_task_edit(&state.db, user_id, task_id).await?;
 
@@ -254,8 +253,7 @@ pub(crate) async fn download_attachment(
     Path(id): Path<String>,
     Query(query): Query<InlineQuery>,
 ) -> Result<Response, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (_, user_id) = require_user(&state, &headers).await?;
     let attachment_id = uuid_from_str(&id)?;
 
     let row: Option<(Uuid, String, String)> =
@@ -324,8 +322,7 @@ pub(crate) async fn delete_attachment(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<TaskDto>, AppError> {
-    let ctx = require_auth(&state, &headers).await?;
-    let user_id = uuid_from_str(&ctx.user.id)?;
+    let (ctx, user_id) = require_user(&state, &headers).await?;
     let attachment_id = uuid_from_str(&id)?;
 
     let row: Option<(Uuid, String)> =
