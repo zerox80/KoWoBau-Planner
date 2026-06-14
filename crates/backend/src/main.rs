@@ -109,6 +109,19 @@ async fn main() -> anyhow::Result<()> {
         return healthcheck_cli();
     }
 
+    init_tracing();
+
+    let cfg = AppConfig::from_env()?;
+    fs::create_dir_all(&cfg.upload_dir).await?;
+
+    let db = connect_database().await?;
+    prepare_database(&db, &cfg).await?;
+
+    let state = app_state(db, cfg);
+    serve(state).await
+}
+
+fn init_tracing() {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -116,10 +129,9 @@ async fn main() -> anyhow::Result<()> {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+}
 
-    let cfg = AppConfig::from_env()?;
-    fs::create_dir_all(&cfg.upload_dir).await?;
-
+async fn connect_database() -> anyhow::Result<PgPool> {
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://kowobau:kowobau@localhost:5432/kowobau".to_string());
     let db = PgPoolOptions::new()
@@ -127,39 +139,52 @@ async fn main() -> anyhow::Result<()> {
         .acquire_timeout(StdDuration::from_secs(10))
         .connect(&database_url)
         .await?;
+    Ok(db)
+}
 
-    sqlx::migrate!("./migrations").run(&db).await?;
+async fn prepare_database(db: &PgPool, cfg: &AppConfig) -> anyhow::Result<()> {
+    sqlx::migrate!("./migrations").run(db).await?;
     if cfg.seed_demo {
         tracing::info!("KOWOBAU_SEED_DEMO is enabled; seeding demo data on empty database");
-        seed_demo(&db, &cfg.upload_dir).await?;
+        seed_demo(db, &cfg.upload_dir).await?;
     } else {
         tracing::info!("demo seed disabled (set KOWOBAU_SEED_DEMO=true to enable)");
-        // The demo seed creates accounts with the well-known password
-        // "password123"; leftover demo users in a non-demo deployment are an
-        // open door and deserve a loud warning on every start.
-        let demo_exists: bool =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
-                .bind(fixed_uuid("20000000-0000-4000-8000-000000000001")?)
-                .fetch_one(&db)
-                .await?;
-        if demo_exists {
-            tracing::warn!(
-                "SECURITY: demo-seeded accounts with well-known passwords exist in this \
-                 database while KOWOBAU_SEED_DEMO is off; delete the demo users or wipe \
-                 the database before production use"
-            );
-        }
+        warn_if_demo_data_exists(db).await?;
     }
+    Ok(())
+}
 
+async fn warn_if_demo_data_exists(db: &PgPool) -> anyhow::Result<()> {
+    // The demo seed creates accounts with the well-known password
+    // "password123"; leftover demo users in a non-demo deployment are an
+    // open door and deserve a loud warning on every start.
+    let demo_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+        .bind(fixed_uuid("20000000-0000-4000-8000-000000000001")?)
+        .fetch_one(db)
+        .await?;
+    if demo_exists {
+        tracing::warn!(
+            "SECURITY: demo-seeded accounts with well-known passwords exist in this \
+             database while KOWOBAU_SEED_DEMO is off; delete the demo users or wipe \
+             the database before production use"
+        );
+    }
+    Ok(())
+}
+
+fn app_state(db: PgPool, cfg: AppConfig) -> AppState {
     let (events, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
-    let state = AppState {
+    AppState {
         db,
         cfg,
         auth_limiter: Arc::new(Mutex::new(HashMap::new())),
         hash_permits: Arc::new(Semaphore::new(MAX_CONCURRENT_PASSWORD_HASHES)),
         ws_conns: Arc::new(Mutex::new(HashMap::new())),
         events,
-    };
+    }
+}
+
+async fn serve(state: AppState) -> anyhow::Result<()> {
     let app = build_router(state.clone());
 
     let listener = TcpListener::bind(&state.cfg.bind).await?;

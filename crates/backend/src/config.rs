@@ -79,62 +79,37 @@ pub(crate) struct AuthContext {
 
 impl AppConfig {
     pub(crate) fn from_env() -> anyhow::Result<Self> {
-        let session_secret = env_var("KOWOBAU_SESSION_SECRET", "CADENCE_SESSION_SECRET")
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "KOWOBAU_SESSION_SECRET must be set (generate one with e.g. `openssl rand -base64 48`)"
-                )
-            })?;
-        if session_secret.len() < 32 {
-            anyhow::bail!("KOWOBAU_SESSION_SECRET must be at least 32 characters long");
-        }
+        let session_secret = session_secret_from_env()?;
 
         Ok(Self {
-            bind: env_var("KOWOBAU_BIND", "CADENCE_BIND")
-                .unwrap_or_else(|| "127.0.0.1:8080".to_string()),
-            static_dir: env_var("KOWOBAU_STATIC_DIR", "CADENCE_STATIC_DIR").map_or_else(|| PathBuf::from("crates/frontend/dist"), PathBuf::from),
-            upload_dir: env_var("KOWOBAU_UPLOAD_DIR", "CADENCE_UPLOAD_DIR").map_or_else(|| PathBuf::from("crates/backend/uploads"), PathBuf::from),
+            bind: env_or_default("KOWOBAU_BIND", "CADENCE_BIND", "127.0.0.1:8080"),
+            static_dir: env_path_or_default(
+                "KOWOBAU_STATIC_DIR",
+                "CADENCE_STATIC_DIR",
+                "crates/frontend/dist",
+            ),
+            upload_dir: env_path_or_default(
+                "KOWOBAU_UPLOAD_DIR",
+                "CADENCE_UPLOAD_DIR",
+                "crates/backend/uploads",
+            ),
             session_secret,
-            cookie_secure: env_var("KOWOBAU_COOKIE_SECURE", "CADENCE_COOKIE_SECURE")
-                .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "TRUE")),
-            seed_demo: env_var("KOWOBAU_SEED_DEMO", "CADENCE_SEED_DEMO")
-                .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "TRUE")),
+            cookie_secure: env_flag("KOWOBAU_COOKIE_SECURE", "CADENCE_COOKIE_SECURE"),
+            seed_demo: env_flag("KOWOBAU_SEED_DEMO", "CADENCE_SEED_DEMO"),
             registration_enabled: env_var(
                 "KOWOBAU_REGISTRATION_ENABLED",
                 "CADENCE_REGISTRATION_ENABLED",
             )
-            .is_none_or(|v| matches!(v.as_str(), "1" | "true" | "TRUE")),
-            max_workspace_storage_bytes: env_var(
+            .is_none_or(|v| flag_is_enabled(&v)),
+            max_workspace_storage_bytes: env_i64(
                 "KOWOBAU_MAX_WORKSPACE_STORAGE_BYTES",
                 "CADENCE_MAX_WORKSPACE_STORAGE_BYTES",
-            )
-            // A typo must not silently fall back to the default quota.
-            .map(|v| {
-                v.parse().map_err(|_| {
-                    anyhow::anyhow!("KOWOBAU_MAX_WORKSPACE_STORAGE_BYTES must be an integer byte count, got {v:?}")
-                })
-            })
-            .transpose()?
+            )?
             .unwrap_or(MAX_WORKSPACE_STORAGE_BYTES),
-            trust_proxy: env_var("KOWOBAU_TRUST_PROXY", "CADENCE_TRUST_PROXY")
-                .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "TRUE")),
-            trusted_proxies: match env_var("KOWOBAU_TRUSTED_PROXIES", "CADENCE_TRUSTED_PROXIES") {
-                // A typo in the list must not silently widen or shrink trust.
-                Some(list) => list
-                    .split(',')
-                    .filter(|s| !s.trim().is_empty())
-                    .map(|s| {
-                        IpCidr::parse(s).ok_or_else(|| {
-                            anyhow::anyhow!(
-                                "KOWOBAU_TRUSTED_PROXIES contains an invalid CIDR: {s:?}"
-                            )
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-                None => default_trusted_proxies(),
-            },
+            trust_proxy: env_flag("KOWOBAU_TRUST_PROXY", "CADENCE_TRUST_PROXY"),
+            trusted_proxies: trusted_proxies_from_env()?,
             public_origin: env_var("KOWOBAU_PUBLIC_ORIGIN", "CADENCE_PUBLIC_ORIGIN")
-                .map(|v| v.trim_end_matches('/').to_string())
+                .map(normalize_origin)
                 .filter(|v| !v.is_empty()),
         })
     }
@@ -142,6 +117,70 @@ impl AppConfig {
 
 pub(crate) fn env_var(primary: &str, fallback: &str) -> Option<String> {
     env::var(primary).ok().or_else(|| env::var(fallback).ok())
+}
+
+fn session_secret_from_env() -> anyhow::Result<String> {
+    let session_secret = env_var("KOWOBAU_SESSION_SECRET", "CADENCE_SESSION_SECRET").ok_or_else(
+        || {
+            anyhow::anyhow!(
+                "KOWOBAU_SESSION_SECRET must be set (generate one with e.g. `openssl rand -base64 48`)"
+            )
+        },
+    )?;
+    if session_secret.len() < 32 {
+        anyhow::bail!("KOWOBAU_SESSION_SECRET must be at least 32 characters long");
+    }
+    Ok(session_secret)
+}
+
+fn env_or_default(primary: &str, fallback: &str, default: &str) -> String {
+    env_var(primary, fallback).unwrap_or_else(|| default.to_string())
+}
+
+fn env_path_or_default(primary: &str, fallback: &str, default: &str) -> PathBuf {
+    env_var(primary, fallback).map_or_else(|| PathBuf::from(default), PathBuf::from)
+}
+
+fn env_flag(primary: &str, fallback: &str) -> bool {
+    env_var(primary, fallback).is_some_and(|v| flag_is_enabled(&v))
+}
+
+fn flag_is_enabled(value: &str) -> bool {
+    matches!(value, "1" | "true" | "TRUE")
+}
+
+fn env_i64(primary: &str, fallback: &str) -> anyhow::Result<Option<i64>> {
+    env_var(primary, fallback)
+        // A typo must not silently fall back to the default quota.
+        .map(|value| {
+            value.parse().map_err(|_| {
+                anyhow::anyhow!("{primary} must be an integer byte count, got {value:?}")
+            })
+        })
+        .transpose()
+}
+
+fn trusted_proxies_from_env() -> anyhow::Result<Vec<IpCidr>> {
+    match env_var("KOWOBAU_TRUSTED_PROXIES", "CADENCE_TRUSTED_PROXIES") {
+        Some(list) => parse_trusted_proxies(&list),
+        None => Ok(default_trusted_proxies()),
+    }
+}
+
+fn parse_trusted_proxies(list: &str) -> anyhow::Result<Vec<IpCidr>> {
+    // A typo in the list must not silently widen or shrink trust.
+    list.split(',')
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| {
+            IpCidr::parse(s).ok_or_else(|| {
+                anyhow::anyhow!("KOWOBAU_TRUSTED_PROXIES contains an invalid CIDR: {s:?}")
+            })
+        })
+        .collect()
+}
+
+fn normalize_origin(value: String) -> String {
+    value.trim_end_matches('/').to_string()
 }
 
 pub(crate) fn healthcheck_cli() -> anyhow::Result<()> {
