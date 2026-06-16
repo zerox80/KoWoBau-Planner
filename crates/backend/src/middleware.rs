@@ -37,7 +37,9 @@ pub(crate) fn same_origin(cfg: &AppConfig, headers: &HeaderMap) -> bool {
         .get(HOST)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    origin != "null" && !request_host.is_empty() && origin_authority.eq_ignore_ascii_case(request_host)
+    origin != "null"
+        && !request_host.is_empty()
+        && origin_authority.eq_ignore_ascii_case(request_host)
 }
 
 /// Fixed-window per-IP limiter for the unauthenticated auth endpoints. These
@@ -181,5 +183,3 @@ pub(crate) async fn security_headers(req: Request, next: Next) -> Response {
     );
     res
 }
-
-
