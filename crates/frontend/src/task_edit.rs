@@ -10,6 +10,9 @@ pub(crate) struct TaskEditSnapshot {
     pub(crate) phase: String,
     pub(crate) recurrence: Option<Recurrence>,
     pub(crate) assignee_id: String,
+    /// Full original assignee list so edits that do not touch the assignee
+    /// dropdown do not silently reduce multiple assignees to one.
+    pub(crate) assignee_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -27,6 +30,10 @@ pub(crate) struct TaskEditSetters {
 pub(crate) fn task_update_payload(edit: TaskEditSnapshot) -> UpdateTaskRequest {
     let assignee_ids = if edit.assignee_id.trim().is_empty() {
         Vec::new()
+    } else if edit.assignee_ids.len() > 1 && edit.assignee_ids.first() == Some(&edit.assignee_id) {
+        // The dropdown only shows the first assignee. If it was not changed,
+        // preserve the full original list instead of reducing it to one.
+        edit.assignee_ids
     } else {
         vec![edit.assignee_id]
     };

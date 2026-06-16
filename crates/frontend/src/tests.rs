@@ -49,6 +49,14 @@ fn calendar_weekends_are_saturday_and_sunday() {
 }
 
 #[test]
+fn gantt_weekends_match_calendar_weekends() {
+    assert!(!is_weekend(days_from_civil(2026, 6, 5)));
+    assert!(is_weekend(days_from_civil(2026, 6, 6)));
+    assert!(is_weekend(days_from_civil(2026, 6, 7)));
+    assert!(!is_weekend(days_from_civil(2026, 6, 8)));
+}
+
+#[test]
 fn dates_format_with_real_month_names() {
     assert_eq!(fmt_date("2026-03-05", Lang::De), "5. Mär");
     assert_eq!(fmt_date("2026-03-05", Lang::En), "Mar 5");

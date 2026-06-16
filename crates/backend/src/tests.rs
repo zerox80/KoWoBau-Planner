@@ -135,14 +135,6 @@ fn mentions_match_exact_names_with_boundaries() {
 }
 
 #[test]
-fn host_only_strips_ports_and_brackets() {
-    assert_eq!(host_only("example.com"), "example.com");
-    assert_eq!(host_only("example.com:8080"), "example.com");
-    assert_eq!(host_only("[::1]:8080"), "::1");
-    assert_eq!(host_only("127.0.0.1:80"), "127.0.0.1");
-}
-
-#[test]
 fn viewer_cannot_edit_but_members_and_up_can() {
     assert!(Role::Owner.can_edit());
     assert!(Role::Admin.can_edit());
@@ -201,9 +193,17 @@ fn same_origin_compares_against_host_header() {
         &cfg,
         &origin_headers(Some("https://example.com"), Some("example.com"))
     ));
-    assert!(same_origin(
+    assert!(!same_origin(
         &cfg,
         &origin_headers(Some("https://example.com:8443"), Some("example.com:443"))
+    ));
+    assert!(same_origin(
+        &cfg,
+        &origin_headers(Some("https://example.com:8443"), Some("example.com:8443"))
+    ));
+    assert!(same_origin(
+        &cfg,
+        &origin_headers(Some("https://[::1]:8080"), Some("[::1]:8080"))
     ));
     assert!(!same_origin(
         &cfg,

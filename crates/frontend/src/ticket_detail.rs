@@ -119,13 +119,13 @@ pub(crate) fn ticket_detail(
                 </label>
                 <div class="modal-meta ticket-meta">
                     <input placeholder=move || lang.get().tr("Melder / Kontakt", "Requester / contact") prop:value=requester_name on:input=move |ev| set_requester_name.set(event_target_value(&ev)) disabled=!can_edit/>
-                    <select on:change=move |ev| set_status.set(ticket_status_from_value(&select_value(&ev))) disabled=!can_edit>
+                    <select prop:value=move || ticket_status_value(&status.get()) on:change=move |ev| set_status.set(ticket_status_from_value(&select_value(&ev))) disabled=!can_edit>
                         {ticket_status_options(current_status, lang)}
                     </select>
-                    <select on:change=move |ev| set_priority.set(priority_from_value(&select_value(&ev))) disabled=!can_edit>
+                    <select prop:value=move || priority_value(&priority.get()) on:change=move |ev| set_priority.set(priority_from_value(&select_value(&ev))) disabled=!can_edit>
                         {priority_options(current_priority, lang)}
                     </select>
-                    <select on:change=move |ev| set_assignee_id.set(select_value(&ev)) disabled=!can_edit>
+                    <select prop:value=assignee_id on:change=move |ev| set_assignee_id.set(select_value(&ev)) disabled=!can_edit>
                         <option value="" selected=current_assignee.is_empty()>{move || lang.get().tr("Nicht zugewiesen", "Unassigned")}</option>
                         {boot.members.into_iter().map(|m| {
                             let selected = current_assignee == m.user_id;
