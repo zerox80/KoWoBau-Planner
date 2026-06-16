@@ -326,7 +326,7 @@ fn compact_task_key(key: &str) -> String {
     key.to_string()
 }
 
-fn is_weekend(day: i64) -> bool {
-    let weekday = (day + 4).rem_euclid(7);
+pub(crate) fn is_weekend(day: i64) -> bool {
+    let weekday = (day + 3).rem_euclid(7);
     weekday >= 5
 }

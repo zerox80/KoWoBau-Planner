@@ -29,12 +29,15 @@ pub(crate) fn same_origin(cfg: &AppConfig, headers: &HeaderMap) -> bool {
     if let Some(expected) = &cfg.public_origin {
         return origin.eq_ignore_ascii_case(expected);
     }
-    let origin_host = host_only(origin.split_once("://").map_or(origin, |(_, a)| a));
+    // Compare the full authority (host:port) so origins on different ports are
+    // not treated as same-origin. IPv6 addresses keep their brackets, matching
+    // the Host header format.
+    let origin_authority = origin.split_once("://").map_or(origin, |(_, a)| a);
     let request_host = headers
         .get(HOST)
         .and_then(|v| v.to_str().ok())
-        .map_or("", host_only);
-    origin != "null" && !request_host.is_empty() && origin_host.eq_ignore_ascii_case(request_host)
+        .unwrap_or("");
+    origin != "null" && !request_host.is_empty() && origin_authority.eq_ignore_ascii_case(request_host)
 }
 
 /// Fixed-window per-IP limiter for the unauthenticated auth endpoints. These
@@ -179,13 +182,4 @@ pub(crate) async fn security_headers(req: Request, next: Next) -> Response {
     res
 }
 
-/// Strips a `:port` suffix (and IPv6 brackets) from an authority string.
-pub(crate) fn host_only(authority: &str) -> &str {
-    if let Some(rest) = authority.strip_prefix('[') {
-        return rest.split(']').next().unwrap_or(rest);
-    }
-    match authority.rsplit_once(':') {
-        Some((host, port)) if !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()) => host,
-        _ => authority,
-    }
-}
+

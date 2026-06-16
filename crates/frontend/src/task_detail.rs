@@ -70,6 +70,7 @@ pub(crate) fn task_detail(
     });
 
     let task_id_for_save = task.id.clone();
+    let assignees_for_save = assignees.clone();
     let save = move |_| {
         if !require_title(
             &title_edit.get_untracked(),
@@ -90,6 +91,7 @@ pub(crate) fn task_detail(
             phase: phase_edit.get_untracked(),
             recurrence: recurrence_edit.get_untracked(),
             assignee_id: assignee_edit.get_untracked(),
+            assignee_ids: assignees_for_save.clone(),
         });
         let task_id = task_id_for_save.clone();
         spawn_local(async move {
@@ -131,6 +133,7 @@ pub(crate) fn task_detail(
     let reset_due = task.due_date.clone().unwrap_or_default();
     let reset_phase = task.phase.clone();
     let reset_assignee = task.assignee_ids.first().cloned().unwrap_or_default();
+    let reset_assignee_ids = task.assignee_ids.clone();
     let reset_recurrence = task.recurrence;
 
     let mention_candidates = move || -> Vec<MemberDto> {
@@ -437,6 +440,7 @@ pub(crate) fn task_detail(
                             phase: reset_phase.clone(),
                             recurrence: reset_recurrence,
                             assignee_id: reset_assignee.clone(),
+                            assignee_ids: reset_assignee_ids.clone(),
                         },
                     );
                     set_local_error.set(None);
