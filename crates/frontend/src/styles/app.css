@@ -23,7 +23,7 @@
 .search { flex: 0 1 330px; display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 10px; padding: 0 12px; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); }
 .search input { width: 100%; border: 0; outline: 0; padding: 10px 0; background: transparent; }
 .demo-pill { margin-left: auto; padding: 7px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-press); font: 700 12px var(--font-mono); }
-.icon-button { width: 38px; height: 38px; border-radius: 10px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); position: relative; }
+.icon-button { width: 38px; height: 38px; border-radius: 10px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); position: relative; display: grid; place-items: center; color: var(--ink-2); }
 .icon-button.small { width: 30px; height: 30px; border-radius: 8px; font-weight: 900; }
 .dot, .notif-row > b { width: 7px; height: 7px; border-radius: 999px; background: var(--accent); display: block; position: absolute; right: 7px; top: 7px; }
 .notif-wrap { position: relative; }

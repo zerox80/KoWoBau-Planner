@@ -3,6 +3,7 @@ use crate::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AppIcon {
     Alert,
+    Bell,
     Calendar,
     CheckCircle,
     Clock,
@@ -24,6 +25,12 @@ pub(crate) fn app_icon(icon: AppIcon) -> View {
                 <path d="M12 8v5"></path>
                 <path d="M12 17h.01"></path>
                 <path d="M10.3 4.9 3.1 17.3A2 2 0 0 0 4.8 20h14.4a2 2 0 0 0 1.7-2.7L13.7 4.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+        }.into_view(),
+        AppIcon::Bell => view! {
+            <svg class="app-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.7 21a2 2 0 0 1-3.4 0"></path>
             </svg>
         }.into_view(),
         AppIcon::Calendar => view! {
