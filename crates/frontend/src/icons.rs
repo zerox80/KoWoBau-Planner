@@ -29,8 +29,10 @@ pub(crate) fn app_icon(icon: AppIcon) -> View {
         }.into_view(),
         AppIcon::Bell => view! {
             <svg class="app-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                <path d="M18 10.5A6 6 0 0 0 6 10.5c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                <path d="M13.7 22a2 2 0 0 1-3.4 0"></path>
+                <g transform="translate(1.8 3.3) scale(0.85)" stroke-width="2.24">
+                    <path d="M18 10.5A6 6 0 0 0 6 10.5c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.7 22a2 2 0 0 1-3.4 0"></path>
+                </g>
             </svg>
         }.into_view(),
         AppIcon::Calendar => view! {
