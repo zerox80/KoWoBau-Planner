@@ -123,8 +123,8 @@ pub(crate) fn dashboard(boot: BootstrapDto, signals: &AppSignals) -> View {
                     <span class="demo-pill">{move || lang.get().tr("Demo-Vorschau", "Demo preview")}</span>
                     <LangToggle lang set_lang/>
                     <span class="notif-wrap">
-                        <button class="icon-button" on:click=move |_| set_show_notifications.update(|v| *v = !*v)>
-                            "◌"
+                        <button class="icon-button" aria-label=move || lang.get().tr("Benachrichtigungen", "Notifications") on:click=move |_| set_show_notifications.update(|v| *v = !*v)>
+                            {app_icon(AppIcon::Bell)}
                             {move || if unread > 0 { view! { <b class="dot"></b> }.into_view() } else { empty_view() }}
                         </button>
                         {move || if show_notifications.get() {
