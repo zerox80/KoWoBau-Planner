@@ -226,7 +226,7 @@ pub(crate) fn ticket_status_label(status: &TicketStatus, lang: Lang) -> &'static
         (TicketStatus::Open, Lang::En) => "Open",
         (TicketStatus::InProgress, Lang::De) => "In Arbeit",
         (TicketStatus::InProgress, Lang::En) => "In progress",
-        (TicketStatus::Resolved, Lang::De) => "Geloest",
+        (TicketStatus::Resolved, Lang::De) => "Gelöst",
         (TicketStatus::Resolved, Lang::En) => "Resolved",
         (TicketStatus::Closed, Lang::De) => "Geschlossen",
         (TicketStatus::Closed, Lang::En) => "Closed",

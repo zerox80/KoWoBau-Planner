@@ -81,7 +81,7 @@ pub(crate) fn admin_view(
                                 set_invite_result.set(Some(
                                     lang.get_untracked()
                                         .tr(
-                                            "Bestehender User wurde direkt hinzugefuegt.",
+                                            "Bestehender User wurde direkt hinzugefügt.",
                                             "Existing user was added directly.",
                                         )
                                         .into(),
@@ -220,7 +220,7 @@ pub(crate) fn admin_view(
                                 {move || invite_result.get().map(|text| view! { <div class="invite-result">{text}</div> })}
                             }.into_view()
                         } else {
-                            view! { <p class="muted">{move || lang.get().tr("Nur Admins koennen Mitglieder verwalten.", "Only admins can manage members.")}</p> }.into_view()
+                            view! { <p class="muted">{move || lang.get().tr("Nur Admins können Mitglieder verwalten.", "Only admins can manage members.")}</p> }.into_view()
                         }}
                     </section>
 
@@ -315,7 +315,7 @@ pub(crate) fn admin_view(
                                                                 set_data,
                                                                 set_error,
                                                             );
-                                                        }>{move || lang.get().tr("Hinzufuegen", "Add")}</button>
+                                                        }>{move || lang.get().tr("Hinzufügen", "Add")}</button>
                                                     }.into_view()
                                                 }}
                                             </span>
@@ -376,10 +376,10 @@ fn admin_summary(
 ) -> View {
     view! {
         <section class="admin-summary">
-            {admin_metric("Mitglieder", "Members", member_count.to_string(), lang.get().tr("aktive Workspace-Zugaenge", "active workspace access"), "cool", lang)}
-            {admin_metric("Owner/Admins", "Owners/admins", admin_count.to_string(), lang.get().tr("koennen verwalten", "can manage"), "accent", lang)}
+            {admin_metric("Mitglieder", "Members", member_count.to_string(), lang.get().tr("aktive Workspace-Zugänge", "active workspace access"), "cool", lang)}
+            {admin_metric("Owner/Admins", "Owners/admins", admin_count.to_string(), lang.get().tr("können verwalten", "can manage"), "accent", lang)}
             {admin_metric("Accounts", "Accounts", registered_count.to_string(), lang.get().tr("registriert", "registered"), "good", lang)}
-            {admin_metric("Letzte Aktivitaet", "Latest activity", latest_activity, lang.get().tr("Audit-Log", "audit log"), "warm", lang)}
+            {admin_metric("Letzte Aktivität", "Latest activity", latest_activity, lang.get().tr("Audit-Log", "audit log"), "warm", lang)}
         </section>
     }
     .into_view()

@@ -208,7 +208,7 @@ pub(crate) fn task_detail(
                     }}
                     {if can_edit {
                         view! {
-                            <button class="danger-link" on:click=delete>{move || lang.get().tr("Loeschen", "Delete")}</button>
+                            <button class="danger-link" on:click=delete>{move || lang.get().tr("Löschen", "Delete")}</button>
                         }.into_view()
                     } else {
                         empty_view()
@@ -247,11 +247,11 @@ pub(crate) fn task_detail(
                             </select>
                         </span>
                         <span>
-                            <small>{move || lang.get().tr("Faelligkeit", "Due date")}</small>
+                            <small>{move || lang.get().tr("Fälligkeit", "Due date")}</small>
                             <input type="date" prop:value=due_date_edit on:input=move |ev| set_due_date_edit.set(event_target_value(&ev))/>
                         </span>
                         <span>
-                            <small>{move || lang.get().tr("Prioritaet", "Priority")}</small>
+                            <small>{move || lang.get().tr("Priorität", "Priority")}</small>
                             <select on:change=move |ev| set_priority_edit.set(priority_from_value(&select_value(&ev)))>
                                 {priority_options(current_priority, lang)}
                             </select>
@@ -277,8 +277,8 @@ pub(crate) fn task_detail(
                 view! {
                     <div class="detail-meta">
                         <span><small>{move || lang.get().tr("Zuweisen", "Assign")}</small>{assignee_avatars(&assignees, &members_for_display)}</span>
-                        <span><small>{move || lang.get().tr("Faelligkeit", "Due date")}</small><b>{due.clone()}</b></span>
-                        <span><small>{move || lang.get().tr("Prioritaet", "Priority")}</small><b>{priority.clone()}</b></span>
+                        <span><small>{move || lang.get().tr("Fälligkeit", "Due date")}</small><b>{due.clone()}</b></span>
+                        <span><small>{move || lang.get().tr("Priorität", "Priority")}</small><b>{priority.clone()}</b></span>
                         <span><small>{move || lang.get().tr("Wiederholung", "Repeat")}</small><b>{move || recurrence_label(task_recurrence.as_ref(), lang.get())}</b></span>
                         <span><small>{move || lang.get().tr("Projekt", "Project")}</small><b>{project_line.clone()}</b></span>
                     </div>
@@ -296,7 +296,7 @@ pub(crate) fn task_detail(
             </section>
             {subtasks_panel(task_id_base.clone(), subtasks, pct, can_edit, lang, set_data, set_error)}
             <section>
-                <h3>{move || lang.get().tr("Anhaenge", "Attachments")}</h3>
+                <h3>{move || lang.get().tr("Anhänge", "Attachments")}</h3>
                 <div class="attachments">
                     {attachments.into_iter().map(|a| attachment_view(a, lang, can_edit.then_some((editing, delete_attachment)))).collect_view()}
                 </div>

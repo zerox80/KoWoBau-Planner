@@ -136,7 +136,7 @@ pub(crate) fn ticket_detail(
                 <footer>
                     {if can_edit {
                         view! {
-                            <button class="danger-link danger-action" on:click=delete>{move || lang.get().tr("Loeschen", "Delete")}</button>
+                            <button class="danger-link danger-action" on:click=delete>{move || lang.get().tr("Löschen", "Delete")}</button>
                         }.into_view()
                     } else {
                         empty_view()

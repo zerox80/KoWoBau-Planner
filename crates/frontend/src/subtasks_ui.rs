@@ -84,8 +84,14 @@ pub(crate) fn subtasks_panel(
                                 }
                             }
                         />
-                        <button class="btn primary" disabled=move || busy.get() on:click=move |_| submit_new()>
-                            {move || lang.get().tr("Hinzufuegen", "Add")}
+                        <button
+                            class="btn primary"
+                            disabled=move || busy.get()
+                            title=move || lang.get().tr("Unteraufgabe hinzufügen", "Add subtask")
+                            aria-label=move || lang.get().tr("Unteraufgabe hinzufügen", "Add subtask")
+                            on:click=move |_| submit_new()
+                        >
+                            "+"
                         </button>
                     </div>
                 }.into_view()
@@ -97,6 +103,99 @@ pub(crate) fn subtasks_panel(
             })}
         </section>
     }.into_view()
+}
+
+pub(crate) fn draft_subtasks_editor(
+    subtasks: ReadSignal<Vec<String>>,
+    set_subtasks: WriteSignal<Vec<String>>,
+    lang: ReadSignal<Lang>,
+) -> View {
+    let (draft_title, set_draft_title) = create_signal(String::new());
+    let (local_error, set_local_error) = create_signal::<Option<String>>(None);
+
+    let add_draft = move || {
+        let title = draft_title.get_untracked();
+        if !require_title(
+            &title,
+            "Bitte gib zuerst einen Unteraufgaben-Titel ein.",
+            "Add a subtask title first.",
+            lang.get_untracked(),
+            set_local_error,
+        ) {
+            return;
+        }
+        set_subtasks.update(|items| items.push(title.trim().to_string()));
+        set_draft_title.set(String::new());
+        set_local_error.set(None);
+    };
+    let add_draft_for_key = add_draft;
+
+    view! {
+        <div class="subtask-draft">
+            <div class="subtask-list">
+                {move || {
+                    let items = subtasks.get();
+                    if items.is_empty() {
+                        view! {
+                            <p class="subtask-empty">
+                                {move || lang.get().tr("Keine Unteraufgaben.", "No subtasks.")}
+                            </p>
+                        }.into_view()
+                    } else {
+                        items.into_iter().enumerate().map(|(idx, title)| {
+                            view! {
+                                <div class="subtask subtask-draft-row">
+                                    <span class="subtask-title">{title}</span>
+                                    <button
+                                        class="subtask-action danger"
+                                        title=move || lang.get().tr("Löschen", "Delete")
+                                        aria-label=move || lang.get().tr("Löschen", "Delete")
+                                        on:click=move |_| {
+                                            set_subtasks.update(|items| {
+                                                if idx < items.len() {
+                                                    items.remove(idx);
+                                                }
+                                            });
+                                        }
+                                    >
+                                        "×"
+                                    </button>
+                                </div>
+                            }
+                        }).collect_view().into_view()
+                    }
+                }}
+            </div>
+            <div class="subtask-add">
+                <input
+                    placeholder=move || lang.get().tr("Neue Unteraufgabe", "New subtask")
+                    prop:value=draft_title
+                    on:input=move |ev| {
+                        set_draft_title.set(event_target_value(&ev));
+                        set_local_error.set(None);
+                    }
+                    on:keydown=move |ev| {
+                        if ev.key() == "Enter" {
+                            ev.prevent_default();
+                            add_draft_for_key();
+                        }
+                    }
+                />
+                <button
+                    class="btn primary"
+                    title=move || lang.get().tr("Unteraufgabe hinzufügen", "Add subtask")
+                    aria-label=move || lang.get().tr("Unteraufgabe hinzufügen", "Add subtask")
+                    on:click=move |_| add_draft()
+                >
+                    "+"
+                </button>
+            </div>
+            {move || local_error.get().map(|err| view! {
+                <div class="modal-error inline subtask-error">{err}</div>
+            })}
+        </div>
+    }
+    .into_view()
 }
 
 fn subtask_row(
@@ -228,12 +327,28 @@ fn subtask_row(
                             }
                         />
                         <span class="subtask-actions">
-                            <button class="link-button" disabled=move || busy.get() on:click=move |_| save_title_for_button()>"OK"</button>
-                            <button class="link-button" disabled=move || busy.get() on:click=move |_| {
-                                set_title_edit.set(label_for_cancel.clone());
-                                set_local_error.set(None);
-                                set_editing.set(false);
-                            }>{move || lang.get().tr("Abbrechen", "Cancel")}</button>
+                            <button
+                                class="subtask-action"
+                                disabled=move || busy.get()
+                                title=move || lang.get().tr("Speichern", "Save")
+                                aria-label=move || lang.get().tr("Speichern", "Save")
+                                on:click=move |_| save_title_for_button()
+                            >
+                                "✓"
+                            </button>
+                            <button
+                                class="subtask-action"
+                                disabled=move || busy.get()
+                                title=move || lang.get().tr("Abbrechen", "Cancel")
+                                aria-label=move || lang.get().tr("Abbrechen", "Cancel")
+                                on:click=move |_| {
+                                    set_title_edit.set(label_for_cancel.clone());
+                                    set_local_error.set(None);
+                                    set_editing.set(false);
+                                }
+                            >
+                                "×"
+                            </button>
                         </span>
                     </div>
                 }.into_view()
@@ -255,13 +370,26 @@ fn subtask_row(
                         {if can_edit {
                             view! {
                                 <span class="subtask-actions">
-                                    <button class="link-button" on:click=move |_| {
-                                        set_title_edit.set(label_for_button.clone());
-                                        set_local_error.set(None);
-                                        set_editing.set(true);
-                                    }>{move || lang.get().tr("Umbenennen", "Rename")}</button>
-                                    <button class="danger-link" disabled=move || busy.get() on:click=delete_for_button>
-                                        {move || lang.get().tr("Loeschen", "Delete")}
+                                    <button
+                                        class="subtask-action"
+                                        title=move || lang.get().tr("Umbenennen", "Rename")
+                                        aria-label=move || lang.get().tr("Umbenennen", "Rename")
+                                        on:click=move |_| {
+                                            set_title_edit.set(label_for_button.clone());
+                                            set_local_error.set(None);
+                                            set_editing.set(true);
+                                        }
+                                    >
+                                        "✎"
+                                    </button>
+                                    <button
+                                        class="subtask-action danger"
+                                        disabled=move || busy.get()
+                                        title=move || lang.get().tr("Löschen", "Delete")
+                                        aria-label=move || lang.get().tr("Löschen", "Delete")
+                                        on:click=delete_for_button
+                                    >
+                                        "×"
                                     </button>
                                 </span>
                             }.into_view()

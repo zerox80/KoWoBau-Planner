@@ -13,6 +13,7 @@ pub(crate) fn create_task_modal(
     let (due_date, set_due_date) = create_signal(iso_in_days(5));
     let (priority, set_priority) = create_signal(Priority::Medium);
     let (phase, set_phase) = create_signal("ausfuehrung".to_string());
+    let (subtasks, set_subtasks) = create_signal::<Vec<String>>(Vec::new());
     let (status_id, set_status_id) = create_signal(
         boot.statuses
             .first()
@@ -56,7 +57,12 @@ pub(crate) fn create_task_modal(
             phase: phase.get_untracked(),
             recurrence: recurrence.get_untracked(),
             assignee_ids: vec![assignee_id.get_untracked()],
-            subtasks: vec![],
+            subtasks: subtasks
+                .get_untracked()
+                .into_iter()
+                .map(|title| title.trim().to_string())
+                .filter(|title| !title.is_empty())
+                .collect(),
         };
         spawn_local(async move {
             match api_post::<_, TaskDto>("/api/tasks", &payload).await {
@@ -98,6 +104,10 @@ pub(crate) fn create_task_modal(
                     <span>{move || lang.get().tr("Beschreibung", "Description")}</span>
                     <textarea placeholder=move || lang.get().tr("Beschreibung hinzufügen...", "Add description...") prop:value=description on:input=move |ev| set_description.set(textarea_value(&ev))></textarea>
                 </label>
+                <div class="modal-field task-subtasks-field">
+                    <span>{move || lang.get().tr("Unteraufgaben", "Subtasks")}</span>
+                    {draft_subtasks_editor(subtasks, set_subtasks, lang)}
+                </div>
                 <div class="modal-meta">
                     <select on:change=move |ev| set_assignee_id.set(select_value(&ev))>
                         {boot.members.clone().into_iter().map(|m| view! { <option value=m.user_id>{m.name}</option> }).collect_view()}

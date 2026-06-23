@@ -280,7 +280,7 @@ pub(crate) fn confirm(message: &str) -> bool {
 /// Native confirm for a plain "delete &lt;name&gt;?" action. Returns false on cancel.
 pub(crate) fn confirm_delete(name: &str, lang: Lang) -> bool {
     let message = if lang.is_de() {
-        format!("{name} wirklich loeschen?")
+        format!("{name} wirklich löschen?")
     } else {
         format!("Delete {name}?")
     };
@@ -300,7 +300,7 @@ pub(crate) fn confirm_remove_member(name: &str, lang: Lang) -> bool {
 /// Confirm deleting an attachment.
 pub(crate) fn confirm_delete_attachment(name: &str, lang: Lang) -> bool {
     let message = if lang.is_de() {
-        format!("Anhang {name} wirklich loeschen?")
+        format!("Anhang {name} wirklich löschen?")
     } else {
         format!("Delete attachment {name}?")
     };

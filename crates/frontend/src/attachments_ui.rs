@@ -61,7 +61,7 @@ pub(crate) fn attachment_view(
                         if confirm_delete_attachment(&file_name, lang.get_untracked()) {
                             on_delete.call(attachment_id.clone());
                         }
-                    }>{move || lang.get().tr("Loeschen", "Delete")}</button>
+                    }>{move || lang.get().tr("Löschen", "Delete")}</button>
                 }
             })}
         }

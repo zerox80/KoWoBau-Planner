@@ -114,7 +114,7 @@ pub(crate) fn overview_view(
                                     let milestone_id = m.id.clone();
                                     let milestone_title = title_for(m.title.clone(), m.title_en.clone(), lang.get());
                                     view! {
-                                        <button class="danger-icon" title=move || lang.get().tr("Meilenstein loeschen", "Delete milestone") on:click=move |_| {
+                                        <button class="danger-icon" title=move || lang.get().tr("Meilenstein löschen", "Delete milestone") on:click=move |_| {
                                             delete_milestone(milestone_id.clone(), milestone_title.clone(), lang, set_data, set_error);
                                         }>"x"</button>
                                     }.into_view()
@@ -255,7 +255,7 @@ pub(crate) fn ticket_view(
                 <div class="ticket-head">
                     <span>"Ticket"</span>
                     <span>"Status"</span>
-                    <span>{move || lang.get().tr("Prioritaet", "Priority")}</span>
+                    <span>{move || lang.get().tr("Priorität", "Priority")}</span>
                     <span>{move || lang.get().tr("Melder", "Requester")}</span>
                     <span>{move || lang.get().tr("Zuweisung", "Assignee")}</span>
                     <span>{move || lang.get().tr("Aktualisiert", "Updated")}</span>

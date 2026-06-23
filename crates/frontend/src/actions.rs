@@ -186,7 +186,7 @@ pub(crate) fn add_existing_user_to_workspace(
             Ok(_) => refresh_bootstrap(set_data, set_error).await,
             Err(err) => {
                 let prefix = if lang.get_untracked().is_de() {
-                    "Konnte User nicht hinzufuegen"
+                    "Konnte User nicht hinzufügen"
                 } else {
                     "Could not add user"
                 };
