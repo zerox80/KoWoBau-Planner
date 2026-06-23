@@ -102,7 +102,18 @@
 .task-drawer .drawer-edit-actions { position: sticky; bottom: 0; z-index: 3; display: flex; justify-content: end; align-items: center; flex-wrap: wrap; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); border-bottom: 0; background: var(--surface-2); box-shadow: 0 -18px 34px -30px rgba(0,0,0,.45); }
 .drawer-textarea { width: 100%; min-height: 120px; resize: vertical; }
 .task-drawer section h3 { color: var(--ink-3); font: 700 12px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 12px; }
+.subtask-list { display: grid; margin-top: 8px; }
+.subtask-item { display: grid; }
 .subtask { display: flex; gap: 10px; align-items: center; padding: 9px 0; }
+.subtask-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
+.subtask-edit-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
+.subtask-title { overflow-wrap: anywhere; }
+.subtask-actions { display: inline-flex; gap: 10px; justify-content: end; align-items: center; }
+.subtask-add { display: flex; gap: 8px; margin-top: 12px; }
+.subtask-add input, .subtask-edit-row input[type="text"] { min-width: 0; flex: 1; width: 100%; }
+.subtask-add button { width: auto; min-width: 44px; padding-inline: 12px; }
+.subtask-empty { margin-top: 10px; color: var(--ink-3); }
+.subtask-error { margin-top: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .file-chip { display: inline-flex; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); text-decoration: none; color: inherit; }
 .file-chip small { color: var(--ink-3); font: 700 11px var(--font-mono); }

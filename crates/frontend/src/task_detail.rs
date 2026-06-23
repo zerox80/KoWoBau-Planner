@@ -294,31 +294,7 @@ pub(crate) fn task_detail(
                     view! { <p>{description.clone()}</p> }.into_view()
                 }}
             </section>
-            <section>
-                <h3>{move || lang.get().tr("Unteraufgaben", "Subtasks")}</h3>
-                <div class="progress-line"><i style=format!("width:{pct}%")></i></div>
-                {subtasks.into_iter().map(|sub| {
-                    let task_id = task_id_base.clone();
-                    let sub_id = sub.id.clone();
-                    let done = sub.done;
-                    let label = title_for(sub.title, sub.title_en, lang.get());
-                    view! {
-                        <label class="subtask">
-                            {if can_edit {
-                                view! {
-                                    <input type="checkbox" checked=done on:change=move |ev| {
-                                        let checked = event_target::<web_sys::HtmlInputElement>(&ev).checked();
-                                        toggle_subtask(task_id.clone(), sub_id.clone(), checked, set_data, set_error);
-                                    }/>
-                                }.into_view()
-                            } else {
-                                view! { <input type="checkbox" checked=done disabled/> }.into_view()
-                            }}
-                            <span>{label}</span>
-                        </label>
-                    }
-                }).collect_view()}
-            </section>
+            {subtasks_panel(task_id_base.clone(), subtasks, pct, can_edit, lang, set_data, set_error)}
             <section>
                 <h3>{move || lang.get().tr("Anhaenge", "Attachments")}</h3>
                 <div class="attachments">

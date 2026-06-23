@@ -216,6 +216,7 @@ mod modals;
 mod realtime;
 mod settings;
 mod shell;
+mod subtasks_ui;
 mod task_detail;
 mod task_edit;
 #[cfg(test)]
@@ -238,6 +239,7 @@ pub(crate) use modals::*;
 pub(crate) use realtime::*;
 pub(crate) use settings::*;
 pub(crate) use shell::*;
+pub(crate) use subtasks_ui::*;
 pub(crate) use task_detail::*;
 pub(crate) use task_edit::*;
 pub(crate) use theme::*;
