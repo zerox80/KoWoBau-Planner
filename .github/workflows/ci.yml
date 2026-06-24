@@ -30,7 +30,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Keep every Rust source file reviewable: hard cap of 500 lines.
       - name: Line-count gate (max 500 lines per .rs file)
